@@ -13,6 +13,9 @@ on:
   push:
   workflow_dispatch:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   core-tests:
     name: Core engine tests (swift test)
