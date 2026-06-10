@@ -102,7 +102,7 @@ struct TrendSparkline: View {
             let span = max(hi - lo, 1)
             let stepX = values.count > 1 ? geo.size.width / CGFloat(values.count - 1) : 0
 
-            func point(_ index: Int) -> CGPoint {
+            let point: (Int) -> CGPoint = { index in
                 CGPoint(
                     x: CGFloat(index) * stepX,
                     y: geo.size.height * (1 - CGFloat((values[index] - lo) / span))
