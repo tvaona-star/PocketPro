@@ -227,9 +227,7 @@ struct LayoutEditorView: View {
         HStack {
             Text(label)
             Spacer()
-            TextField("—", value: value, format: .number)
-                .keyboardType(.decimalPad)
-                .multilineTextAlignment(.trailing)
+            OptionalNumberField(placeholder: "—", value: value)
                 .frame(width: 90)
         }
     }

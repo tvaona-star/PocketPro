@@ -75,9 +75,8 @@ private struct ProfileForm: View {
         HStack {
             Text(label)
             Spacer()
-            TextField("—", value: value, format: .number)
-                .keyboardType(.numbersAndPunctuation)
-                .multilineTextAlignment(.trailing)
+            // numbersAndPunctuation: PAP up/down accepts negative values.
+            OptionalNumberField(placeholder: "—", value: value, keyboard: .numbersAndPunctuation)
                 .frame(width: 90)
         }
     }

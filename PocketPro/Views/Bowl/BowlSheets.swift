@@ -109,9 +109,7 @@ struct FrameNoteSheet: View {
                     HStack {
                         Text("Breakpoint Distance")
                         Spacer()
-                        TextField("ft", value: $frame.breakpointDistanceFt, format: .number)
-                            .keyboardType(.decimalPad)
-                            .multilineTextAlignment(.trailing)
+                        OptionalNumberField(placeholder: "ft", value: $frame.breakpointDistanceFt)
                             .frame(width: 80)
                     }
                 }

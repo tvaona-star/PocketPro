@@ -346,6 +346,48 @@ struct SheetHeader: View {
     }
 }
 
+// MARK: - Optional numeric entry
+
+/// Numeric entry bound to `Double?` where an empty field means nil.
+/// Text-backed on purpose: SwiftUI's format-based TextField initializers require
+/// `Binding<F.FormatInput>` exactly (no Optional overload), and the legacy
+/// formatter-based one only commits on return — useless with a decimal pad.
+struct OptionalNumberField: View {
+    let placeholder: String
+    @Binding var value: Double?
+    var keyboard: UIKeyboardType = .decimalPad
+
+    @State private var text = ""
+
+    var body: some View {
+        TextField(placeholder, text: $text)
+            .keyboardType(keyboard)
+            .multilineTextAlignment(.trailing)
+            .onAppear {
+                text = value.map(Self.format) ?? ""
+            }
+            .onChange(of: text) { _, newText in
+                value = Self.parse(newText)
+            }
+            .onChange(of: value) { _, newValue in
+                // Refresh on external resets (form repopulation) without
+                // clobbering in-progress typing ("4." parses equal to 4).
+                if newValue != Self.parse(text) {
+                    text = newValue.map(Self.format) ?? ""
+                }
+            }
+    }
+
+    private static func parse(_ raw: String) -> Double? {
+        let normalized = raw.replacingOccurrences(of: ",", with: ".").trimmingCharacters(in: .whitespaces)
+        return Double(normalized)
+    }
+
+    private static func format(_ v: Double) -> String {
+        v == v.rounded() ? String(Int(v)) : String(v)
+    }
+}
+
 // MARK: - Labeled rows
 
 struct SpecRow: View {
