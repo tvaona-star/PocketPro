@@ -31,8 +31,14 @@ tools/                    Windows-runnable reference implementations + generator
 docs/                     PRD, leave audit table, CloudKit + PinPal format guides
 ```
 
-## Building (macOS)
+## Building
 
+**No Mac? Start here → [docs/NO_MAC_GUIDE.md](docs/NO_MAC_GUIDE.md).**
+GitHub Actions (`.github/workflows/ios.yml`) compiles the app, runs the test
+suite, and produces an unsigned `.ipa` you can sideload onto an iPhone from
+Windows with AltStore — free Apple ID, no Mac, no developer account.
+
+**With a Mac:**
 1. Open `PocketPro.xcodeproj` in Xcode 16+.
 2. Select the **PocketPro** scheme and an iOS 17+ simulator.
 3. **⌘R**. No signing team or network needed — iCloud sync is off by default
