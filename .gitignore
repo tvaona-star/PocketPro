@@ -1,0 +1,22 @@
+# Xcode / Swift
+build/
+build-sim/
+DerivedData/
+*.xcuserdatad/
+xcuserdata/
+.build/
+.swiftpm/
+Payload/
+*.ipa
+
+# OS noise
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Local tooling
+.claude/
+*.log
+
+# Real PinPal exports may contain personal data — keep them out of the repo
+docs/pinpal_exports/

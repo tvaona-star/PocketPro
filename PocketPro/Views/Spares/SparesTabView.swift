@@ -1,0 +1,386 @@
+import SwiftUI
+import SwiftData
+import PocketProCore
+
+/// Spares tab (PRD 5.5): leave frequency, conversion tracking, corner-pin spotlight,
+/// heatmap, and miss log. All data flows from frame-level pin entry — no duplicate entry.
+struct SparesTabView: View {
+    @Query(sort: \Session.date, order: .reverse) private var allSessions: [Session]
+    @Query(filter: #Predicate<Ball> { $0.active }) private var arsenal: [Ball]
+    @AppStorage(SettingsKeys.seasonDefinition) private var seasonRaw = SeasonDefinition.usbc.rawValue
+
+    @State private var typeFilter: SessionType?
+    @State private var dateRange: StatDateRange = .thisSeason
+    @State private var ballFilter: UUID?
+    @State private var categoryFilter: LeaveCategory?
+    @State private var heatmapPin: Int?
+    @State private var viewMode: ViewMode = .list
+
+    enum ViewMode: String, CaseIterable {
+        case list = "List"
+        case heatmap = "Heatmap"
+        case missLog = "Miss Log"
+    }
+
+    private var season: SeasonDefinition {
+        SeasonDefinition(rawValue: seasonRaw) ?? .usbc
+    }
+
+    private var rangeStart: Date? {
+        let now = Date()
+        switch dateRange {
+        case .thisWeek: return Calendar.current.date(byAdding: .day, value: -7, to: now)
+        case .thisMonth: return Calendar.current.date(byAdding: .month, value: -1, to: now)
+        case .thisSeason: return season.seasonStart(now: now)
+        case .allTime, .custom: return nil
+        }
+    }
+
+    private var games: [GameRecord] {
+        allSessions
+            .filter { session in
+                if session.isActive { return false }
+                if let typeFilter, session.type != typeFilter { return false }
+                if let start = rangeStart, session.date < start { return false }
+                return true
+            }
+            .flatMap { $0.gameRecords() }
+            .filter { game in
+                if let ballFilter, !game.ballIDs.contains(ballFilter) { return false }
+                return true
+            }
+    }
+
+    /// Prior-period games for the corner spotlight trend.
+    private var priorGames: [GameRecord] {
+        guard let start = rangeStart else { return [] }
+        let span = Date().timeIntervalSince(start)
+        let priorStart = start.addingTimeInterval(-span)
+        return allSessions
+            .filter { session in
+                if session.isActive { return false }
+                if let typeFilter, session.type != typeFilter { return false }
+                return session.date >= priorStart && session.date < start
+            }
+            .flatMap { $0.gameRecords() }
+    }
+
+    private var hasAnyLeaves: Bool {
+        games.contains { !$0.leaves.isEmpty }
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    filterBar
+
+                    if !hasAnyLeaves {
+                        EmptyStateView(
+                            icon: "pin",
+                            title: "No spare data yet",
+                            message: "Bowl a session to start tracking spare conversion."
+                        )
+                    } else {
+                        CornerPinSpotlight(games: games, priorGames: priorGames)
+
+                        Picker("View", selection: $viewMode) {
+                            ForEach(ViewMode.allCases, id: \.self) { mode in
+                                Text(mode.rawValue).tag(mode)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+
+                        switch viewMode {
+                        case .list:
+                            categoryChips
+                            LeaveFrequencyList(games: games, categoryFilter: categoryFilter, pinFilter: heatmapPin)
+                        case .heatmap:
+                            PinLeaveHeatmap(games: games, selectedPin: $heatmapPin)
+                            if let pin = heatmapPin {
+                                Text("Showing leaves containing the \(pin) pin — tap the pin again to clear.")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(Theme.textMuted)
+                                LeaveFrequencyList(games: games, categoryFilter: nil, pinFilter: pin)
+                            }
+                        case .missLog:
+                            MissLogView(sessions: allSessions, typeFilter: typeFilter, rangeStart: rangeStart, ballFilter: ballFilter)
+                        }
+                    }
+                }
+                .padding()
+            }
+            .background(Theme.bgPrimary)
+            .navigationTitle("Spares")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    SettingsToolbarLink()
+                }
+            }
+        }
+    }
+
+    // MARK: Filters (PRD 5.5.4)
+
+    private var filterBar: some View {
+        VStack(spacing: 8) {
+            Picker("Type", selection: $typeFilter) {
+                Text("All").tag(SessionType?.none)
+                ForEach(SessionType.allCases) { type in
+                    Text(type.displayName).tag(SessionType?.some(type))
+                }
+            }
+            .pickerStyle(.segmented)
+
+            HStack(spacing: 8) {
+                Menu {
+                    ForEach([StatDateRange.thisWeek, .thisMonth, .thisSeason, .allTime]) { range in
+                        Button(range.displayName) { dateRange = range }
+                    }
+                } label: {
+                    menuPill(dateRange.displayName, active: dateRange != .allTime)
+                }
+                Menu {
+                    Button("Any ball") { ballFilter = nil }
+                    ForEach(arsenal) { ball in
+                        Button(ball.displayName) { ballFilter = ball.id }
+                    }
+                } label: {
+                    menuPill(
+                        ballFilter.flatMap { id in arsenal.first { $0.id == id }?.displayName } ?? "Any ball",
+                        active: ballFilter != nil
+                    )
+                }
+                Spacer()
+            }
+        }
+    }
+
+    private func menuPill(_ label: String, active: Bool) -> some View {
+        Text(label)
+            .font(.system(size: 13, weight: .medium))
+            .lineLimit(1)
+            .foregroundStyle(active ? Color.white : Theme.textSecondary)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .background(active ? Theme.accent : Theme.bgElevated)
+            .clipShape(Capsule())
+    }
+
+    /// Category filter chips — full taxonomy (PRD 5.5.4).
+    private var categoryChips: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                FilterChip(label: "All", isActive: categoryFilter == nil) {
+                    categoryFilter = nil
+                }
+                ForEach([LeaveCategory.singlePin, .cornerPin, .sleeper, .cluster, .washout, .babySplit, .split, .bigSplit, .bucket, .bigFour, .sevenTen, .other]) { category in
+                    FilterChip(label: category.pluralDisplayName, isActive: categoryFilter == category) {
+                        categoryFilter = categoryFilter == category ? nil : category
+                    }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Corner pin spotlight (PRD 5.5.4: 7 and 10 always visible, no scrolling)
+
+struct CornerPinSpotlight: View {
+    let games: [GameRecord]
+    let priorGames: [GameRecord]
+
+    var body: some View {
+        HStack(spacing: 10) {
+            spotlightCard(pin: 7)
+            spotlightCard(pin: 10)
+        }
+    }
+
+    private func spotlightCard(pin: Int) -> some View {
+        let aggregate = StatsEngine.pinAggregate(games: games, pins: PinSet(pins: [pin]))
+        let prior = StatsEngine.pinAggregate(games: priorGames, pins: PinSet(pins: [pin]))
+        let delta: Double? = {
+            guard let current = aggregate.conversionPercent, let previous = prior.conversionPercent else { return nil }
+            return current - previous
+        }()
+
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("\(pin) PIN")
+                    .font(.system(size: 13, weight: .heavy))
+                    .foregroundStyle(Theme.textSecondary)
+                Spacer()
+                PinDiagram(standing: PinSet(pins: [pin]), size: 26)
+            }
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(Notation.percent(aggregate.conversionPercent))
+                    .font(Theme.statNumber(28))
+                    .foregroundStyle(Theme.conversionColor(aggregate.conversionPercent))
+                if let delta, delta != 0 {
+                    TrendArrow(delta: delta)
+                }
+            }
+            Text("Left \(aggregate.timesLeft) · made \(aggregate.timesConverted)")
+                .font(.system(size: 12))
+                .foregroundStyle(Theme.textMuted)
+        }
+        .card()
+    }
+}
+
+// MARK: - Leave frequency list (PRD 5.5.4 default view)
+
+struct LeaveFrequencyList: View {
+    let games: [GameRecord]
+    let categoryFilter: LeaveCategory?
+    let pinFilter: Int?
+
+    private var entries: [LeaveFrequencyEntry] {
+        StatsEngine.leaveFrequency(games: games).filter { entry in
+            if let categoryFilter, !entry.classification.categories.contains(categoryFilter) { return false }
+            if let pinFilter, !entry.pins.contains(pinFilter) { return false }
+            return true
+        }
+    }
+
+    private var totalLeaves: Int {
+        entries.reduce(0) { $0 + $1.aggregate.timesLeft }
+    }
+
+    var body: some View {
+        VStack(spacing: 8) {
+            ForEach(Array(entries.enumerated()), id: \.element.pins.mask) { _, entry in
+                NavigationLink {
+                    LeaveDetailView(pins: entry.pins)
+                } label: {
+                    leaveRow(entry)
+                }
+                .buttonStyle(.plain)
+            }
+            if entries.isEmpty {
+                Text("No leaves match this filter.")
+                    .font(Theme.cardSubtitle)
+                    .foregroundStyle(Theme.textMuted)
+                    .padding(.vertical, 20)
+            }
+        }
+    }
+
+    private func leaveRow(_ entry: LeaveFrequencyEntry) -> some View {
+        let aggregate = entry.aggregate
+        let percentOfFrames = totalLeaves > 0 ? Double(aggregate.timesLeft) / Double(totalLeaves) * 100 : 0
+
+        return HStack(spacing: 12) {
+            PinDiagram(standing: entry.pins, size: 44)
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    Text(entry.classification.displayTitle)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(Theme.textPrimary)
+                    Badge(
+                        text: entry.classification.primary.displayName,
+                        color: entry.classification.isSplit ? Theme.destructive : Theme.accent,
+                        filled: false
+                    )
+                }
+                Text("Left \(aggregate.timesLeft)× · \(String(format: "%.0f%%", percentOfFrames)) of leaves")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.textSecondary)
+            }
+            Spacer()
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(Notation.percent(aggregate.conversionPercent))
+                    .font(.system(size: 17, weight: .bold).monospacedDigit())
+                    .foregroundStyle(Theme.conversionColor(aggregate.conversionPercent))
+                Text("\(aggregate.timesConverted)/\(aggregate.opportunities)")
+                    .font(.system(size: 12).monospacedDigit())
+                    .foregroundStyle(Theme.textMuted)
+            }
+        }
+        .card(padding: 12)
+    }
+}
+
+// MARK: - Pin leave heatmap (PRD 5.5.4, pulled into v1 per DECISIONS.md D5)
+
+struct PinLeaveHeatmap: View {
+    let games: [GameRecord]
+    @Binding var selectedPin: Int?
+
+    var body: some View {
+        let counts = StatsEngine.pinLeaveCounts(games: games)
+        let maxCount = max(counts.max() ?? 1, 1)
+
+        VStack(spacing: 10) {
+            GeometryReader { geo in
+                ZStack {
+                    ForEach(1...10, id: \.self) { pin in
+                        let unit = PinGeometry.unitPoint(pin: pin)
+                        let intensity = Double(counts[pin]) / Double(maxCount)
+                        Button {
+                            selectedPin = selectedPin == pin ? nil : pin
+                        } label: {
+                            ZStack {
+                                Circle()
+                                    .fill(heatColor(intensity))
+                                Circle()
+                                    .strokeBorder(selectedPin == pin ? Theme.textPrimary : Color.clear, lineWidth: 2)
+                                VStack(spacing: 0) {
+                                    Text("\(pin)")
+                                        .font(.system(size: 13, weight: .bold))
+                                        .foregroundStyle(.white)
+                                    Text("\(counts[pin])")
+                                        .font(.system(size: 9, weight: .semibold).monospacedDigit())
+                                        .foregroundStyle(.white.opacity(0.85))
+                                }
+                            }
+                            .frame(width: 52, height: 52)
+                        }
+                        .buttonStyle(.plain)
+                        .position(x: unit.x * geo.size.width, y: unit.y * geo.size.height)
+                    }
+                }
+            }
+            .aspectRatio(1.45, contentMode: .fit)
+
+            HStack(spacing: 6) {
+                Text("Rarely left")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Theme.textMuted)
+                LinearGradient(
+                    colors: [heatColor(0), heatColor(0.5), heatColor(1)],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+                .frame(height: 6)
+                .clipShape(Capsule())
+                Text("Left often")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Theme.textMuted)
+            }
+        }
+        .card()
+    }
+
+    private func heatColor(_ intensity: Double) -> Color {
+        // green (rare) → amber → red (problem pin)
+        if intensity < 0.5 {
+            return Color(
+                .sRGB,
+                red: 0.09 + (0.85 - 0.09) * intensity * 2,
+                green: 0.64 - (0.64 - 0.47) * intensity * 2,
+                blue: 0.29 - 0.26 * intensity * 2,
+                opacity: 1
+            )
+        }
+        let t = (intensity - 0.5) * 2
+        return Color(
+            .sRGB,
+            red: 0.85 + (0.86 - 0.85) * t,
+            green: 0.47 - (0.47 - 0.15) * t,
+            blue: 0.03 + (0.15 - 0.03) * t,
+            opacity: 1
+        )
+    }
+}

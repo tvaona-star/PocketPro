@@ -1,0 +1,1216 @@
+﻿
+PRODUCT REQUIREMENTS DOCUMENT
+Pocket Pro
+The Competitive Bowler's Game Intelligence Platform
+Version
+4.5 â€” Draft
+Date
+June 2026
+Platform
+iOS-first (iPhone primary, iPad adaptive) â€” architecture designed for Android parity in v2
+Inspired By
+PinPal â€” rebuilt with modern UX, richer stats, and comprehensive equipment management
+Primary Use
+Frame-by-frame logging + post-session review + complete ball and layout management
+Session Types
+League | Tournament | Practice | Misc
+Target User
+All skill levels â€” casual to 200+ competitive
+Manufacturer Coverage
+SPI (Storm, Roto Grip, 900 Global) | Brunswick (7 brands) | Motiv
+Positioning
+Pocket Pro owns all equipment data. TenPin Toolkit for physical game tools (angles, targeting, axis tilt).
+
+# 1. Product Overview
+PinPal established the category. Pocket Pro improves every layer of it: a faster entry flow, modern stats modeled on PBA broadcast presentation, and the most complete ball and layout management system in any bowling app.
+Equipment positioning: Pocket Pro is the definitive equipment record for a competitive bowler â€” ball specs from manufacturer databases, full layout library across all major drilling systems, drilling specs, surface prep history, bag builder, and arsenal charting. TenPin Toolkit remains the tool of choice for pre-shot physical game analysis (angles, targeting, axis tilt measurement). The two apps are complementary, not competing.
+The iOS codebase is built with platform-agnostic architecture (SwiftUI + clean data layer) so Android (Kotlin/Jetpack Compose) is a port, not a rewrite in v2.
+
+# 2. Goals & Non-Goals
+### Goals
+- Frame-by-frame stat entry for every game, grouped by session type
+- PBA broadcast-style stat dashboard: strike %, spare % by type, split frequency, open frame rate, clean game rate, streak tracking
+- Complete ball arsenal: specs from manufacturer databases, per-weight storage, surface prep history, performance notes by pattern type
+- Full layout system: personal layout library, Dual Angle and VLS support, drilling specs, one active layout per ball, layout history
+- Bowler profile: PAP stored centrally, referenced throughout arsenal and layout tools
+- Arsenal chart: configurable scatter plot of all balls on any two spec axes
+- Bag builder: league, tournament, and practice bags with named variations
+- Ball comparison: any two balls, all specs side by side, diffs highlighted
+- iOS-first, Android-ready architecture
+### Non-Goals (v1)
+- Angles and targeting visual tool â€” TenPin Toolkit
+- Axis tilt and rotation measurement â€” TenPin Toolkit
+- Ball speed and RPM video measurement â€” TenPin Toolkit (v2+ consideration)
+- Layout recommendation engine â€” v3+ consideration
+- Auto score sync from lane systems
+- Social features or public leaderboards
+- Android native app (architecture supports it â€” v2 target)
+
+# 3. User Personas
+### The Serious League Bowler
+- Averages 170-220+, bowls 1-3 nights per week in sanctioned leagues
+- Owns 4-8 balls, tracks surface and layout deliberately
+- Wants to know: 'Am I missing more 10-pins than I used to? Is this ball still at the right surface?'
+### The Tournament Competitor
+- Bowls USBC, PBA Regional, or local open events on sport and challenge conditions
+- Carries 6-8 ball tournament bags, needs layout and drilling records per ball
+- Reviews sessions to evaluate ball sequencing, line decisions, and equipment performance
+### The Practice-Focused Developer
+- Works with a coach, tracks specific mechanics goals per session
+- Logs practice sessions separately from league â€” doesn't want them polluting league stats
+### The Recreational Bowler (Secondary)
+- Averages 100-160, bowls once a week casually
+- Wants a clean scorecard and basic stats â€” app must not front-load equipment complexity
+
+# 4. Information Architecture
+Five bottom-tab navigation items. Two taps to any primary action. No screen deeper than three levels.
+
+Tab
+Purpose
+Key Actions
+Bowl
+Live session entry and in-progress scoring
+New Session, Log Frame, Ball Swap, Session Note
+Sessions
+Post-game review, history, filter by type
+View/Edit Session, Filter, Export
+Stats
+PBA-style performance dashboard by session type
+Strike %, Spare %, Split %, Open %, Clean Games, Leave Breakdown, Streak Tracking
+Arsenal
+Complete equipment management
+Add Ball, Edit Ball, Layout Library, Bag Builder, Arsenal Chart, Ball Comparison
+Spares
+Leave frequency and conversion tracking
+Leave Frequency, Heatmap, Conversion %, Miss Log
+
+# 5. Feature Specifications
+## 5.1  Bowl Tab â€” Live Session Entry
+### Session Setup
+Tapping 'New Session' opens a bottom sheet with:
+- League / Tournament / Practice / Misc (segmented control, required): Session Type
+- free text with recents inline (shown for League and Tournament types): League or Event Name
+- free text with recents, optional: Location
+- structured picker â€” type, name, length, ratio â€” see Section 5.1.1: Pattern
+- multi-select from arsenal, optional â€” pre-populates ball picker during game: Ball(s) in bag today
+All fields except Session Type are optional. Confirm in one tap.
+### 5.1.1  Pattern Picker
+- House Shot / Sport / PBA Experience / USBC Sport / Custom: Pattern Type
+- free text with recents surfaced inline: Pattern Name
+- picker in feet: 32-47+: Pattern Length
+- Easy (10:1+) / Medium (7:1-9:1) / Difficult (4:1-6:1) / Sport (3:1 or less): Oil Ratio (optional)
+Recent patterns auto-saved and surfaced at top of picker. Pattern links to full session history â€” tapping a pattern name in history shows all sessions on that pattern.
+### Scorecard
+- Standard 10-frame display with running total
+- Visual pin deck selector â€” tap pins knocked down
+- Strike and spare auto-detected; split auto-flagged
+- Ball chip at top â€” tap to log a mid-game ball change with optional reason
+- Long-press any frame to add a structured frame note: Target Board, Board Hit, Breakpoint Board, Breakpoint Distance (all optional), plus free text miss reason or lane observation
+- Score entry mode toggle in settings: pin-by-pin (default) or direct score entry
+### End of Game Card
+- Final score â€” large, prominent
+- Quick summary: e.g., '7 strikes | 2 spares | 1 open | 1 split'
+- Single-pin spare conversion rate for this game
+- Session note field â€” keyboard immediately active
+- 'Bowl another game' and 'Done' as the two CTA buttons
+
+## 5.2  Sessions Tab â€” Post-Game Review
+### Session List
+Segmented filter at top: All / League / Tournament / Practice / Misc. Each session card shows without tapping:
+- Date, session type badge, location
+- Score(s) in a compact row
+- Ball(s) used as pill badges
+- Pattern name and length
+- First line of session note if present
+- Quick stat strip: strikes, spares, opens for that session
+### Session Detail
+- Score header with game-by-game breakdown
+- Frame-by-frame view per game â€” tappable to review or edit
+- Lane Play Log: if any frame notes have board/breakpoint data, these are aggregated here showing target vs. actual board by frame
+- Ball log: which ball per game, mid-game swaps with reason
+- Pattern info: type, name, length, ratio
+- Spare summary: leaves left, conversion %, flagged misses with frame reference
+- Full session note â€” editable inline
+### Filtering
+- Session type, league/event name, ball used, pattern, location, date range
+Filters stack. Active filters shown as dismissible chips. Filter panel is a bottom sheet.
+
+## 5.3  Stats Tab â€” Performance Dashboard
+PBA broadcast aesthetic: bold numbers, clean labels, minimal decoration. All stats filterable by session type and date range.
+### Stat Filters
+- Session Type: All / League / Tournament / Practice / Misc
+- Date Range: This Week / This Month / This Season / All Time / Custom
+- Ball (optional) and Pattern (optional) â€” enables cross-filter condition compare
+### Trend Strip
+Always visible at top of Stats tab. Shows last 5 session averages as dots on a simple line, trend direction vs. prior 5 sessions (arrow + delta), and one highlighted hot stat (e.g., 'Spare % up 6 points this month').
+### Primary Stats Panel â€” 2x3 Grid
+
+Stat
+Definition
+Display
+Strike %
+Strikes / total first balls thrown
+67.4%
+Spare %
+Spares converted / attempts (excludes splits)
+89.2%
+Split %
+Splits left / total first balls
+6.1%
+Open Frame %
+Open frames / total frames
+12.3%
+Clean Game %
+Games with no open frames / total games
+41%
+Average
+Running average, all games in filter
+213.4
+### Spare Breakdown Panel
+Expandable below the primary panel. Uses the full leave classification taxonomy â€” see Section 5.5 for the complete classifier. Each category row shows: times left, times converted, conversion %.
+
+Leave Category
+Definition
+Examples
+Tracked
+Single Pins
+Any single pin left standing
+7, 10, 4, 6, 1, 2, 3, 5, 8, 9
+Yes â€” per individual pin (10 sub-rows)
+Corner Pins
+7 pin or 10 pin specifically â€” spotlighted above panel
+7 pin, 10 pin
+Yes â€” dedicated spotlight cards
+Sleeper Spares
+One pin directly behind another, hidden from view
+2-8, 3-9, 1-5
+Yes
+Cluster Spares
+Adjacent pin groups, no split gap
+2-4-5, 3-5-6, Bucket (2-4-5-8)
+Yes â€” named clusters where applicable
+Washouts
+Head pin still standing, non-pocket leave
+1-2-4-10, 1-3-6-7, 1-2-10
+Yes
+Baby Splits
+Head pin down, two close pins remaining
+2-7, 3-10, 4-5, 5-6
+Yes
+Big Splits
+Head pin down, wide gap between remaining pins
+4-6, 7-9, 4-6-7-10 (Big Four)
+Yes
+7-10 Split
+Hardest leave â€” tracked independently
+7-10
+Yes â€” own category
+Other Leaves
+All remaining combinations â€” named where possible
+e.g., 4-6-9, 6-7-10
+Yes â€” stored by pin combo, never lost in 'Other'
+All 1,023 possible non-strike first ball results are tracked individually by pin combination. Category tags are auto-assigned by the classifier. Some leaves appear in multiple categories (e.g., 2-7 is both Baby Split and a named leave). The 'Other Leaves' row is an expandable list of every uncategorized combination â€” nothing is ever discarded.
+### Strike Clusters Panel
+- Doubles % â€” strike followed by another strike, per strike thrown
+- Turkey+ % â€” three or more consecutive strikes per game frequency
+- Max streak per game â€” highest consecutive strikes in a single game
+- Streak history â€” chronological log of every streak of 3+ with date and session
+- First-ball average â€” average pins on first ball across all frames
+### Condition Compare
+When a Ball and/or Pattern filter is active, all stat tiles update to reflect only games matching those filters. Answers: 'How do I perform with the Ion Max on 40+ ft patterns?'
+### Session Averages by Type
+Clean table: League, Tournament, Practice, Misc averages side by side. No chart.
+
+## 5.4  Arsenal Tab â€” Complete Equipment Management
+The definitive equipment record for a competitive bowler. All ball data, layout data, and surface data in one place. TenPin Toolkit is the companion for physical game tools â€” Pocket Pro owns everything equipment.
+## 5.4.1  Bowler Profile
+Stored in Settings. Referenced throughout the arsenal and layout system. Not buried â€” surfaced wherever relevant (e.g., PAP shown when editing a layout).
+
+Field
+Description
+Priority
+PAP â€” Inches Over
+Positive Axis Point â€” horizontal distance from PAP to track
+Primary
+PAP â€” Inches Up/Down
+Positive Axis Point â€” vertical offset (up or down from track)
+Primary
+Ball Speed
+Average ball speed at release in mph
+Secondary
+Rev Rate
+Revolutions per minute â€” estimated or measured
+Secondary
+Axis Tilt
+Degrees of tilt at release
+Secondary
+Axis Rotation
+Degrees of rotation at release
+Secondary
+Grip Type
+Default grip type: Fingertip / Conventional / Modified fingertip
+Secondary
+PAP is the primary field â€” used by the layout system to contextualize dual-angle and VLS measurements. Secondary fields (speed, rev rate, tilt, rotation) are stored for reference and future layout recommendation engine (v3+).
+## 5.4.2  Ball Database and Add Flow
+Search by brand and model. App queries the Pocket Pro ball database (11 brands, 3 manufacturer families) and auto-populates read-only manufacturer specs. Bowler then adds personal fields. Manual entry fallback if ball not found.
+- coverstock type, coverstock name, core name, RG, diff, int. diff, asymmetric flag, factory finish â€” all at bowler's weight: Specs auto-populated (read-only)
+- app displays bowler's weight; falls back to 15 lb with note if unavailable: Specs stored per weight (12-16 lb)
+- if core appears across multiple Brunswick sub-brands, other balls are listed in ball detail: Brunswick shared core flag
+- routes to admin QA queue; manual entry unlocked immediately: 'Report missing ball' option
+## 5.4.3  Ball Card (List View)
+- Brand, model, year, manufacturer parent badge
+- Weight â€” bowler's actual weight
+- Coverstock type badge (Solid / Pearl / Hybrid / Urethane / Polyester)
+- Current surface grit and finish
+- Last surface prep date
+- Active layout name in shorthand (e.g., 'Strong 50x4 3/4x40 DA')
+- RG and Differential at bowler's weight
+- Thumb type badge (Slug / Interchangeable / No Thumb)
+## 5.4.4  Ball Detail
+Sections are collapsible. Default: all expanded.
+- coverstock name, core name, RG, diff, int. diff, symmetric/asym at bowler's weight; Brunswick shared core link if applicable: Manufacturer specs (read-only)
+- weight, purchase date, thumb type, notes on drilling intent: My specs
+- see Section 5.4.4a below: Thumb type
+- name + full spec summary; tap to view full layout detail or swap to a different layout from the library: Active layout
+- chronological list of past layouts â€” date archived, reason, full spec â€” see Section 5.4.6: Layout history
+- chronological prep log â€” see Section 5.4.7: Surface history
+- by pattern type â€” see Section 5.4.8: Performance notes
+- list of sessions where ball was used: date, pattern, score: Session history
+- launches ball comparison: Compare button
+## 5.4.4a  Thumb Type
+Thumb type is a per-ball field stored on the ball record, not on the layout. The hole drilled into the ball determines what thumb system it runs. Three options:
+
+Thumb Type
+Description
+Additional Fields
+No Thumb
+No thumb hole â€” two-handed or no-thumb release bowler
+None
+Slug
+A fixed thumb slug permanently fitted in the thumb hole
+Slug Brand (free text), Slug Material (Urethane / Plastic / Rubber / Custom)
+Interchangeable
+A thumb system hole drilled to accept a removable insert
+System Brand (VISE IT / JoPo / Turbo Switch Grip / Monster Grip / Custom), Hole Size (inches), Hole Pitch
+
+Interchangeable system brand picker pre-populated with: VISE IT, JoPo, Turbo Switch Grip, Monster Grip, Custom. VISE IT and JoPo are the two dominant systems in competitive bowling.
+Thumb type is separate from the drilling specs in the layout. The layout records thumb pitch and thumb size as drilled â€” thumb type adds what is physically installed in that hole. For interchangeable systems, hole size and pitch reflect the shell hole, not any specific insert.
+Thumb type displays as a small badge on the ball card (Slug / Interchangeable / No Thumb) so the bowler sees at a glance how each ball in the arsenal is set up without tapping into detail.
+
+## 5.4.5  Layout Library
+The layout library is the bowler's personal collection of named layouts. Layouts exist independently of balls â€” a layout can be assigned to multiple balls over time. Each layout has a drill system type that determines which fields are shown.
+v1.0: Layout displayed as clean formatted numbers in bowling notation (e.g., 50Â° x 4 3/4" x 40Â°). v1.5: 3D ball diagram with pin, PAP, and CG geometrically plotted on the ball surface â€” modeled on TenPin Toolkit's layout visualization.
+### Creating a Layout
+Bowler taps 'New Layout' in the library. Required: a name (e.g., 'Strong 50x4 3/4x40', 'VLS Long', 'Benchmark DA'). Then selects drill system type.
+### Dual Angle System Fields
+
+Field
+Description
+Example
+Drilling Angle
+Angle of the pin to PAP line relative to the VAL, in degrees
+50Â°
+Pin to PAP
+Distance from pin to bowler's PAP, in inches
+4 3/4"
+VAL Angle
+Val angle â€” pin buffer angle relative to VAL, in degrees
+40Â°
+### VLS System Fields
+
+Field
+Description
+Example
+Pin to PAP
+Distance from pin to bowler's PAP, in inches
+4"
+CG to PAP
+Distance from CG to bowler's PAP, in inches
+3 3/4"
+Pin Buffer
+Distance from pin to VAL (val distance), in inches
+2"
+MB / PSA Distance
+Mass bias or PSA distance from PAP, in inches (asym only)
+3 1/2"
+### Drilling Specs â€” Shared Across Both Systems
+These fields are optionally entered on any layout. They represent the physical drilling measurements on a pro shop drill card â€” everything needed for re-drilling or ball replacement.
+
+Field
+Description
+Notes
+Grip Type
+Fingertip / Conventional / Modified Fingertip
+Required if drilling specs are entered
+Span Convention
+Edge-to-Edge or CTC (center-to-center)
+Toggle â€” matches how the bowler's driller records spans. Applies to all span fields below
+Middle Finger Span
+Span from thumb hole to middle finger hole (E-E or CTC per convention above), in inches
+e.g., 4 7/16"
+Ring Finger Span
+Span from thumb hole to ring finger hole (E-E or CTC per convention above), in inches
+e.g., 4 9/16"
+Bridge Width
+Distance between middle and ring finger holes, in inches
+e.g., 5/16" â€” standard field on all drill cards
+Middle Hole Size
+Middle finger hole diameter, in inches
+e.g., 31/32"
+Ring Hole Size
+Ring finger hole diameter, in inches
+e.g., 31/32"
+Middle Pitch
+Pitch direction and degree for middle finger hole
+e.g., 1/8" Left, 3/8" Up
+Ring Pitch
+Pitch direction and degree for ring finger hole
+e.g., 1/8" Right, 1/4" Down
+Thumb Hole Size
+Thumb hole diameter, in inches â€” reflects shell hole for interchangeable systems
+e.g., 15/16" or 63/64" oval
+Thumb Pitch
+Pitch direction and degree for thumb hole
+e.g., 1/8" Left, 5.2" Forward
+Notes
+Free text â€” driller name, pro shop, ball used for PAP reference, any special instructions
+
+Bridge width and per-finger hole sizes are added based on real pro shop drill cards. Span convention (E-E vs. CTC) is a toggle that applies to all span measurements â€” it matches how the bowler's driller records spans so the data is directly usable at the pro shop without conversion.
+## 5.4.6  Layout Assignment and History
+Each ball has one active layout at a time, selected from the layout library. When a ball is re-drilled:
+- Bowler taps 'Change Layout' on the ball detail
+- Selects new layout from library (or creates a new one)
+- Current active layout is automatically archived to the ball's layout history with a timestamp
+- Bowler optionally adds a reason note: Re-drilled, Cracked ball â€” replaced, New purchase, Adjusted layout, Other
+Layout history within ball detail shows a chronological list: layout name, date it became active, date it was archived, reason note, and full spec. A bowler can see the complete drilling history of any ball.
+Layouts in the library are never deleted when archived from a ball â€” they remain available to assign to other balls. A layout can only be deleted from the library if it is not currently active on any ball.
+## 5.4.7  Surface Prep Log
+- Date (defaults to today)
+- picker: 500 / 1000 / 1500 / 2000 / 2500 / 3000 / 4000 / Polished: Grit applied
+- Abralon / Scotch-Brite / Factory Finish / High Gloss Polish / Custom: Finish type
+- auto-calculated from session history: Games thrown since last prep
+- Notes â€” free text
+Most recent prep always visible on ball card. Full history scrollable in ball detail.
+## 5.4.8  Performance Notes by Pattern Type
+- House Shot
+- Sport / Challenge
+- Short Pattern (35 ft and under)
+- Medium Pattern (36-42 ft)
+- Long Pattern (43 ft+)
+Each is an independent free-text field. Notes persist separately per condition so a bowler can document how a ball performs differently across pattern types.
+## 5.4.9  Ball Comparison
+Select any two balls from the full arsenal for side-by-side spec comparison. All specs shown at bowler's weight. Cells where values differ are highlighted.
+
+Spec
+Ball A
+Ball B
+Thumb Type
+â€”
+â€”
+Thumb System Brand
+â€”
+â€”
+Brand / Model
+â€”
+â€”
+Manufacturer
+â€”
+â€”
+Coverstock Type
+â€”
+â€”
+Coverstock Name
+â€”
+â€”
+Core Name
+â€”
+â€”
+Symmetric / Asymmetric
+â€”
+â€”
+RG (bowler's weight)
+â€”
+â€”
+Differential
+â€”
+â€”
+Intermediate Differential
+â€”
+â€”
+Weight
+â€”
+â€”
+Surface Grit
+â€”
+â€”
+Finish
+â€”
+â€”
+Active Layout Name
+â€”
+â€”
+Layout System
+â€”
+â€”
+Drilling Angle / Pin Buffer
+â€”
+â€”
+Pin to PAP
+â€”
+â€”
+VAL Angle / CG to PAP
+â€”
+â€”
+Span Convention
+â€”
+â€”
+Middle Span
+â€”
+â€”
+Ring Span
+â€”
+â€”
+Bridge Width
+â€”
+â€”
+Middle Hole Size
+â€”
+â€”
+Ring Hole Size
+â€”
+â€”
+Thumb Hole Size
+â€”
+â€”
+Last Surface Prep
+â€”
+â€”
+Games Since Last Prep
+â€”
+â€”
+## 5.4.10  Arsenal Chart
+A scatter plot of all balls in the active arsenal. Fully configurable axes â€” any spec can be placed on X or Y. Each ball is a labeled dot, color-coded by coverstock type.
+### Configurable Axes â€” Any of the Following
+
+Axis Option
+Source
+Notes
+RG
+Manufacturer DB (at bowler's weight)
+Most common axis â€” shows length potential
+Differential
+Manufacturer DB (at bowler's weight)
+Shows flare potential
+Intermediate Differential
+Manufacturer DB (at bowler's weight)
+Asymmetric balls only â€” shows backend shape
+Weight
+Bowler entry
+Useful for comparing multi-weight arsenals
+Surface Grit (numeric)
+Surface Prep Log â€” current grit
+Shows current surface spread across arsenal
+Pin to PAP
+Active layout â€” layout library
+Shows layout spread
+VAL Angle
+Active layout (DA) â€” layout library
+Dual Angle layouts only
+Hook Amount
+User-defined 1-10
+Subjective â€” bowler rates each ball
+Length
+User-defined 1-10
+Subjective â€” bowler rates each ball
+### Chart Interactions
+- Tap any dot to open that ball's detail
+- Axis selector dropdowns at top of chart â€” swap either axis without leaving the view
+- Color legend by coverstock type (Solid = dark, Pearl = light, Hybrid = mid, Urethane = amber, Polyester = grey)
+- Dots sized by weight if weight is on neither axis, giving a subtle third dimension
+- Arsenal gaps are immediately visible â€” empty quadrants indicate missing coverage
+
+## 5.4.11  Bag Builder
+Three bag types: League, Tournament, Practice. Each bag can have named variations for different conditions within the same event or league.
+### League Bags
+- Tied to a specific league (name + day/night/season)
+- Default bag: the standard carry for that league
+- Variations: e.g., 'Early season (fresh)', 'Late season (burnt)' â€” each is a named ordered subset of the arsenal
+- Each ball slot: optional role label (Early read, Benchmark, Mid-lane, Back end, Urethane, Control, Spare)
+- Ball card in bag view shows current surface grit and last prep date â€” service status at a glance
+### Tournament Bags
+- Tied to a named event and pattern (e.g., 'US Open 2026 â€” 47 ft PBA Sport')
+- Max-ball limit toggle: 3-ball league rule / 6-ball / 8-ball / unlimited
+- Variations: e.g., 'If fresh', 'If burned', 'Match play' â€” different ball orders and role assignments per scenario
+- Pattern info (type, name, length, ratio) stored with the bag â€” links to session history for that pattern
+- Ball card in bag view shows active layout name and last surface prep â€” full equipment readiness at a glance
+### Practice Bags
+- Named by intent (e.g., 'House shot work', 'Sport prep', 'Surface testing')
+- Ball list + notes â€” no role labeling required
+- Useful for tracking which balls were used in a practice session and in what order
+
+## 5.5  Spares Tab â€” Leave Classification and Conversion Tracking
+All spare data flows automatically from frame-level pin entry. No duplicate entry. Every non-strike first ball result is recorded as a specific pin combination and classified by the leave taxonomy below.
+## 5.5.1  Leave Classification Taxonomy
+All 1,023 possible non-strike first ball results are tracked by exact pin combination. Every leave is auto-classified by the classifier engine using strict priority rules â€” higher priority categories suppress lower ones where they conflict.
+
+Priority
+Category
+Rule
+Named Examples
+Notes
+1 â€” Highest
+Washout
+Pin 1 (head pin) still standing â€” overrides all other category tags
+1-2-4-10, 1-3-6-7, 1-2-4, 1-3-6, 1-2-10
+Head pin present = washout, full stop
+2
+7-10 Split
+Only pins 7 and 10 remaining
+7-10
+Named. Also tagged Big Split.
+2
+Big Four
+Only pins 4-6-7-10 remaining
+4-6-7-10
+Named. Also tagged Big Split.
+2
+Bucket
+Exactly 2-4-5-8 or 3-5-6-9 remaining
+2-4-5-8 (left), 3-5-6-9 (right)
+Named. Cluster tag suppressed entirely.
+3
+Corner Pin
+Exactly pin 7 or exactly pin 10 remaining
+7 pin, 10 pin
+Also tagged Single Pin. Dedicated spotlight card.
+3
+Single Pin
+Exactly one pin remaining
+7, 10, 4, 6, 1, 2, 3, 5, 8, 9
+10 sub-types tracked individually
+4
+Sleeper
+Exactly two pins where rear pin is directly behind front pin on same lane line
+1-5, 2-8, 3-9
+2-5 and 3-5 are NOT sleepers â€” tagged Other
+4
+Baby Split
+Exactly pins 2-7 or exactly pins 3-10
+2-7, 3-10
+4-5 and 5-6 are NOT baby splits â€” they are Splits
+5
+Big Split
+Head pin down, wide gap â€” no adjacent path between outermost remaining pins
+4-6, 7-9, 8-10, 4-6-7-10, 4-6-7-9-10
+7-10 and Big Four are named subsets
+5
+Split
+Head pin down, two or more pins with any gap between them
+4-5, 5-6, 4-6, 4-7, 6-7-10
+4-5 and 5-6 are Splits. Big Splits also tagged Split.
+6
+Cluster Spare
+Three or more adjacent pins, no gap, head pin down
+2-4-5, 3-5-6, 2-4-7, 3-6-10, 4-7-8, 6-9-10
+Bucket suppresses this. 1-2-4 and 1-3-6 are Washouts.
+7 â€” Lowest
+Other
+Any combination not matching any rule above
+2-5, 3-5, and other ungrouped combos
+Stored by exact pin combo. Never lost.
+
+Multi-tag leaves: 7-10 and Big Four are tagged as both their named category and Big Split. Corner Pins are tagged Corner Pin and Single Pin. Big Splits are tagged Big Split and Split. All other conflicts resolved by priority order above.
+## 5.5.2  Classifier Decision Log â€” Boundary Cases
+All ambiguous classifications resolved. This is the authoritative reference for the lookup table build.
+
+Leave
+Final Classification
+Rationale
+1-5
+Sleeper
+Pin 5 directly behind pin 1 on same lane line
+2-5
+Other
+Neither sleeper (not same lane line) nor cluster (gap exists)
+3-5
+Other
+Same reasoning as 2-5
+1-2-4
+Washout
+Head pin present â€” washout overrides cluster
+1-3-6
+Washout
+Head pin present â€” washout overrides cluster
+2-4-5-8
+Bucket
+Named leave â€” Cluster tag suppressed
+3-5-6-9
+Bucket
+Named leave â€” Cluster tag suppressed
+4-5
+Split
+Head pin down, gap between rows â€” not baby split, not cluster
+5-6
+Split
+Head pin down, gap between rows â€” not baby split, not cluster
+7-10
+7-10 + Big Split
+Named leave, also tagged Big Split
+4-6-7-10
+Big Four + Big Split
+Named leave, also tagged Big Split
+2-7
+Baby Split
+Classic baby split
+3-10
+Baby Split
+Classic baby split
+## 5.5.3  Leave Classifier Engine
+The classifier runs automatically when frame pin counts are entered. All 1,023 combinations are pre-classified at build time into a local lookup table â€” no runtime calculation required.
+- Pin configuration stored as a sorted array of standing pin numbers (e.g., [3, 6, 10] for a 3-6-10 leave)
+- Lookup table maps every pin combination to its resolved category tag array â€” built and validated before v1 ships
+- Priority rules applied at build time â€” lookup table stores final resolved tag set per combination
+- Named leaves hardcoded as exact-match entries; category rules cover all remaining combinations
+- PinPal import: all imported frame data re-processed through classifier so historical spare data receives full category tagging
+- Manual override: bowler can tap any frame leave and override the auto-assigned category â€” override stored on that SpareLeave record
+## 5.5.4  Spares Tab Views
+### Corner Pin Spotlight
+7-pin and 10-pin always visible at the top of the Spares tab without scrolling â€” the two most important single spares for a competitive bowler. Each shows: times left this season, conversion %, trend vs. prior period (arrow + delta).
+### Leave Frequency List
+Default view. Sorted by frequency (most common leave at top). Each row shows:
+- Pin diagram â€” visual representation of the exact leave configuration
+- Leave name if it has one (e.g., 'Bucket', '7-10', 'Baby Split') â€” pin numbers otherwise (e.g., '4-6-9')
+- Category badge â€” the primary category tag
+- Times left â€” count and % of frames
+- Times converted â€” count and conversion % â€” color coded: green (80%+), amber (50-79%), red (under 50%)
+- Tapping any row opens a full leave detail: every frame it occurred, date, session, game, frame note if logged
+### Pin Leave Heatmap (v1.5)
+Alternate view toggled alongside the list. Pin deck displayed with each of the 10 pin positions color-coded by how frequently that pin appears in any leave â€” red = left often, green = rarely left. Tapping a pin position filters the leave list to only leaves containing that pin. Gives an instant visual read on which pins are the problem.
+### Category Filter
+Filter chips across top of the leave list: All / Single Pins / Corner Pins / Sleepers / Clusters / Washouts / Baby Splits / Splits / Big Splits / Buckets / Big Four / 7-10 / Other. Selecting a category filters the leave list to only matching combinations.
+### Filters
+- Session type (League / Tournament / Practice / Misc / All)
+- Date range
+- Ball used â€” to identify if a specific ball correlates with more leaves of a certain type
+### Miss Log
+Chronological list of all unconverted spare attempts. Each row: date, session type, leave name or pin combo, frame number. Tapping opens that session in the Sessions tab at the relevant frame.
+
+# 6. Data Model
+
+Entity
+Key Fields
+User
+id, display_name, pap_over, pap_up, ball_speed, rev_rate, axis_tilt, axis_rotation, default_grip_type, default_ball_weight, preferences{}
+Session
+id, type (league/tournament/practice/misc), league_name, event_name, date, location_id, pattern_id, bag_id, game_ids[], notes, created_at
+Game
+id, session_id, ball_id, frames[], final_score, notes
+Frame
+id, game_id, number (1-10), ball1_pins[], ball2_pins[], ball3_pins[], result (strike/spare/split/open), ball_id (if swapped mid-game), target_board, board_hit, breakpoint_board, breakpoint_distance_ft, note
+Ball
+id, db_ball_id, weight, active_layout_id, thumb_type (none/slug/interchangeable), thumb_slug_brand, thumb_slug_material, thumb_system_brand, thumb_hole_size, thumb_hole_pitch, purchase_date, hook_amount (1-10, v1.5), length_rating (1-10, v1.5), notes_by_pattern{house, sport, short, medium, long}, active (bool)
+BallLayoutHistory
+id, ball_id, layout_id, became_active_at, archived_at, reason_note
+Layout
+id, user_id, name, system (dual_angle/vls), drilling_angle, pin_to_pap, val_angle, cg_to_pap, pin_buffer, mb_psa_distance, grip_type, span_convention (edge_to_edge/ctc), middle_span, ring_span, bridge_width, middle_hole_size, ring_hole_size, middle_pitch, ring_pitch, thumb_hole_size, thumb_pitch, notes, created_at
+BallDB
+id, manufacturer, brand, brand_status, model, year, coverstock_type, coverstock_name, core_name, specs_by_weight{12lb:{RG,diff,int_diff},...}, asymmetric, shared_core_id, image_url, source_url, db_status, spec_last_verified
+SurfaceLog
+id, ball_id, date, grit, finish_type, games_since_prior_prep, notes
+Pattern
+id, type, name, length_ft, ratio_category, notes
+Location
+id, name, city, state
+Bag
+id, type, name, league_name, event_name, pattern_id, max_balls, variations[]
+BagVariation
+id, bag_id, name, ball_slots[]{ball_id, role_label, order}
+SpareLeave
+id, frame_id, pin_config[] (sorted array of standing pin numbers, e.g. [3,6,10]), converted (bool), leave_categories[] (array â€” single_pin / corner_pin / sleeper / cluster / bucket / washout / baby_split / big_split / big_four / seven_ten / other), leave_name (string, nullable â€” populated for named leaves)
+BallDBStagingLog
+id, ball_db_id, change_type, prior_values{}, detected_at, reviewed_at, action, notes
+
+# 7. Design Language & UX Principles
+Pocket Pro carries more data than any other bowling app. The design challenge is ensuring that depth never reads as complexity. Every screen must feel clean, intentional, and fast â€” the competitive bowler at a tournament should feel in control, not buried.
+Reference aesthetic: the Bowling Ball Arsenal app's dark UI is the closest visual benchmark in the market. Pocket Pro extends that direction with more consistent typography, stronger information hierarchy, and a stats layer that reads like a PBA broadcast graphic, not a spreadsheet.
+## 7.1  Visual Foundation
+### Color Mode
+Dark mode first. The app is designed and built for dark backgrounds. Light mode is supported as a secondary mode following iOS system default â€” but dark is the primary design expression and the one that receives full polish attention.
+
+Token
+Role
+Dark Mode Value
+Usage
+Background Primary
+Main screen background
+Near-black (#0F1117)
+All tab and list backgrounds
+Background Card
+Card and section surfaces
+Dark grey (#1C1F26)
+Ball cards, session cards, stat tiles
+Background Elevated
+Modals, bottom sheets, popovers
+Medium grey (#252930)
+Expandable sections, filter panels
+Accent Primary
+Brand and interactive elements
+Deep navy or electric blue TBD
+Buttons, active states, selected tabs
+Accent Destructive
+Delete, warning, miss indicators
+Red (#DC2626)
+Unconverted spares, delete actions
+Accent Success
+Positive indicators
+Green (#16A34A)
+High conversion rates, streaks
+Accent Warning
+Mid-range indicators
+Amber (#D97706)
+Mid conversion rates, surface age alerts
+Text Primary
+Main readable text
+White (#FFFFFF)
+Ball names, scores, stat numbers
+Text Secondary
+Supporting labels and metadata
+Light grey (#9CA3AF)
+Spec labels, dates, session types
+Text Muted
+Inactive or de-emphasized content
+Mid grey (#6B7280)
+Empty states, helper text
+Separator
+Dividers between content
+Subtle grey (#2D3139)
+Card separators, section dividers
+### Typography
+- Single typeface throughout â€” SF Pro (iOS system font). No custom font loading.
+- Stat numbers: large, bold, tabular figures â€” numbers never reflow when values change length
+- Ball names and session titles: medium weight, sized to be readable at arm's length in a bowling center
+- Spec labels: small, secondary color â€” they label the number, they don't compete with it
+- Bowling notation displayed as bowlers write it: 50Â° x 4 3/4" x 40Â° â€” not '50 degrees, 4.75 inches, 40 degrees'
+### Iconography
+- SF Symbols throughout â€” consistent with iOS, no custom icon set required for v1
+- Pin deck diagrams use a simple geometric representation â€” white circles on dark background, filled circles for standing pins, outline for knocked pins
+- Coverstock type badges use color fill as the primary differentiator (not just text labels): Solid = steel blue, Pearl = purple, Hybrid = teal, Urethane = amber, Polyester = grey
+- Thumb type badges: minimal pill shape, text only â€” Slug / Interchangeable / No Thumb
+
+## 7.2  Information Hierarchy â€” The Card Model
+Every data-rich object in Pocket Pro (balls, sessions, layouts, bags) follows the same card model. The card model is how depth is managed without clutter.
+### Three Tiers of Information
+
+Tier
+Where It Lives
+Content Rule
+Example â€” Ball
+Tier 1 â€” Always Visible
+The card in the list view
+4-5 fields max. The most decision-relevant data. Never truncated.
+Brand, model, coverstock badge, surface grit, last prep date
+Tier 2 â€” One Tap
+Expandable card sections in detail
+Groups of related fields. Section header visible, content revealed on tap.
+Manufacturer specs section, Layout section, Surface history section
+Tier 3 â€” Deep Detail
+Full-screen detail within a section
+Complete field set. Only accessed when the bowler needs it.
+Full drilling spec table, full layout history list, full session history
+
+A casual bowler adding their first ball never sees RG, differential, or layout fields unless they tap into them. A competitive bowler who wants to see every spec can get there in two taps. The data is always there â€” it is never front-loaded.
+### Ball Detail â€” Expandable Section Structure
+Ball detail opens showing Tier 1 data at the top (always visible), followed by collapsible section cards. Default state: Manufacturer Specs expanded, all others collapsed. The bowler can set their preferred default in Settings.
+
+Section Card
+Default State
+Tier 1 Preview (always visible on card header)
+Full Content on Expand
+Manufacturer Specs
+Expanded
+Coverstock name, Core name, RG, Diff
+Full spec table at bowler's weight including int. diff, asym flag, shared core link
+My Details
+Collapsed
+Weight, purchase date
+Thumb type, thumb system details, drilling notes
+Layout
+Collapsed
+Active layout name, system type (DA/VLS), pin-to-PAP
+Full layout fields, drilling specs table, layout library picker
+Layout History
+Collapsed
+Number of past layouts
+Chronological list of all past layouts with date, reason, full spec
+Surface
+Collapsed
+Current grit, last prep date, games since prep
+Full surface prep log history
+Performance Notes
+Collapsed
+Note count across pattern types
+Five independent text fields by pattern type
+Session History
+Collapsed
+Total sessions thrown, most recent session date and score
+Full session list with date, pattern, score â€” tappable to open session
+## 7.3  Motion and Interaction
+- Expand/collapse: spring animation on section cards â€” fast (0.25s), not bouncy
+- Bottom sheets: slide up from bottom, spring dismiss. Never full-screen modal for entry flows that can be done in a sheet
+- Score entry pin deck: tap feedback is immediate â€” no delay, no confirmation required
+- Stat tiles: numbers count up on first load (300ms). Subsequent filter changes update instantly without animation
+- Ball card in Arsenal list: subtle left-swipe to reveal quick actions (Edit, Surface Log, Compare)
+- Arsenal chart dots: spring scale on tap before opening ball detail
+## 7.4  Empty States
+Empty states are never just a message. Every empty state tells the bowler exactly what to do next and why it matters.
+- Arsenal â€” no balls: 'Add your first ball to start tracking equipment.' + large Add Ball button. Below: 'Search 2,000+ balls from Storm, Brunswick, Motiv and more.'
+- Sessions â€” no sessions: 'Start a session to track your game.' + New Session button
+- Spares â€” no data yet: 'Bowl a session to start tracking spare conversion.' â€” no action button needed
+- Layout Library â€” empty: 'Create a layout to assign to your balls.' + New Layout button
+- Stats â€” not enough data: tiles display '--' rather than zero. A note below: 'Bowl more sessions to populate your stats.' Threshold: 5 games minimum before stats display
+## 7.5  Core UX Rules
+### Two Taps to Any Primary Action
+New session: 1 tap. Log a frame: 1 tap. Session note: 1 tap. Ball detail: 1 tap from list. Layout library: 1 tap from Arsenal tab. If a primary action requires 3+ taps, the flow needs redesign.
+### One-Handed Entry at the Lanes
+Bottom sheet patterns, large tap targets (minimum 44pt), all interactive elements in the lower two-thirds of the screen during active scoring. No small toggles or tiny inputs when bowling.
+### Depth Is Earned, Not Imposed
+Casual bowlers see scores, basic stats, and a note field. Equipment depth unlocks naturally as the bowler adds balls, layouts, and sessions. The app never asks for data it doesn't need yet.
+### Bowling-Native Language and Notation
+Layouts display as bowlers write them: 50Â° x 4 3/4" x 40Â°. Specs display as bowlers read them: RG 2.48, Diff 0.051. Leave names match what bowlers say: '10 pin', 'baby split', 'big four' â€” not 'pin configuration 7-10' or 'split type B'.
+### Stats Read Like a Broadcast
+Every stat tile is a large number with a small label below it and a trend indicator beside it. Color carries meaning: green is good, amber is watch it, red is a problem. No pie charts. No stacked bar graphs. If it wouldn't fit in a PBA scorebug, reconsider it.
+### The Layout Library Is a Reference Card, Not a Form
+Layouts are named, saved, and selected â€” like picking from a physical reference card at the pro shop. Assigning a layout to a ball should take one tap after the layout library is populated. Creating a new layout is the only time the form appears.
+
+# 8. Platform & Architecture
+## 8.1  iOS Application (v1)
+- SwiftUI throughout â€” cleaner cross-platform path than UIKit
+- Minimum deployment target: iOS 16
+- iPhone primary; iPad adaptive (sidebar nav on iPad)
+- iCloud CloudKit â€” single user, multi-device, local-first offline
+- Ball database: server-synced read-only SQLite cache, OTA updates, never requires network to display specs
+## 8.2  Android Application (v2 â€” Future)
+- Kotlin + Jetpack Compose
+- Data model and business logic from iOS mirrors Android-compatible patterns
+- Google Drive or Firebase for sync (TBD at Android phase)
+- Target: 80%+ feature parity at v2 launch
+
+# 9. Ball Database Pipeline
+Server-maintained, app-synced read-only repository of manufacturer ball specs. 11 brands, 3 manufacturer families. Hybrid model: scrapers detect new balls automatically, nothing publishes without admin QA approval.
+## 9.1  Manufacturer Coverage
+
+Manufacturer
+Brands
+Count
+Notes
+Storm Products Inc. (SPI)
+Storm, Roto Grip, 900 Global
+3
+All on stormbowling.com â€” JS-rendered, requires Playwright
+Brunswick Bowling Products
+Brunswick, Hammer, DV8, Radical, Track, Ebonite, Columbia 300
+7
+7 separate sites; Columbia 300 retired â€” historical catalog only
+Motiv
+Motiv
+1
+Standard HTML â€” no headless browser needed
+## 9.2  Scraper Architecture
+- Playwright headless browser; single scraper, three brand filters; paginated listing pages: SPI
+- One scraper engine, 7 brand-specific URL and CSS configs; Columbia 300 flagged brand_status: retired; shared core detection across sub-brands: Brunswick
+- Standard HTTP fetch; category pages map directly to oil condition categories; retired balls section pulled and flagged: Motiv
+- Weekly cron schedule; per-weight specs (12-16 lb) extracted where published by manufacturer: All scrapers
+## 9.3  Hybrid QA Workflow
+- staged record created, db_status = 'staged'; admin reviews vs. source_url, approves or rejects: New ball detected
+- existing approved ball has spec discrepancy flagged; BallDBStagingLog entry created; admin re-approves before overwrite: Spec change detected
+- 'Report missing ball' in-app creates staged record with source = user_report; admin completes missing fields, approves: User report
+## 9.4  Per-Weight Spec Storage
+
+Field
+Per Weight
+Default
+Fallback
+RG
+Yes (12-16 lb)
+Bowler's weight
+15 lb with note
+Differential
+Yes (12-16 lb)
+Bowler's weight
+15 lb with note
+Intermediate Diff
+Yes (12-16 lb)
+Bowler's weight
+15 lb with note
+Coverstock / Core
+No â€” shared
+N/A
+N/A
+Asymmetric Flag
+No â€” shared
+N/A
+N/A
+Factory Finish / Grit
+No â€” shared
+N/A
+N/A
+## 9.5  Database Sync and Launch Bar
+- Versioned SQLite file synced to app; local copy always used â€” no network required for spec lookups
+- Target update cadence: new balls published within 14 days of manufacturer announcement
+- Launch bar: all active and last-5-years balls across all 11 brands; 15 lb specs confirmed for every record; other weights best-effort
+
+# 10. Competitive Landscape
+
+Feature
+LaneTalk
+PinPal
+TenPin Toolkit
+Pocket Pro
+Score tracking
+Yes (Pro)
+Yes
+No
+Yes
+Session types
+Tags only
+Limited
+No
+League / Tournament / Practice / Misc
+PBA-style stats
+Yes (Pro)
+Basic
+No
+Yes â€” full
+Spare % by leave type
+Yes (Pro)
+Limited
+No
+Yes
+Strike streak tracking
+Partial
+Partial
+No
+Yes â€” doubles, turkey, streak log
+Condition compare (ball x pattern)
+Yes (Pro)
+No
+No
+Yes
+5-session trend strip
+No
+No
+No
+Yes
+Ball database (searchable)
+No
+No
+Yes â€” 2,000+
+Yes â€” 11 brands, manufacturer-sourced
+Specs auto-populate
+No
+No
+No (manual curation)
+Yes â€” scraper + QA pipeline
+Specs per weight (12-16 lb)
+No
+No
+No
+Yes
+Layout library
+No
+No
+Yes
+Yes â€” DA + VLS, all fields
+Drilling specs (span, pitch)
+No
+No
+Yes
+Yes
+3D layout visualization
+No
+No
+Yes
+No (v2+ consideration)
+Layout history per ball
+No
+No
+No
+Yes
+Surface prep log (history)
+No
+No
+No (current only)
+Yes â€” full history
+Arsenal chart (configurable)
+No
+No
+Yes (RG/Diff axes)
+Yes â€” any spec on any axis
+Ball comparison (all specs)
+Basic
+No
+No
+Yes â€” all specs, diffs highlighted
+Bag builder with variations
+No
+No
+Basic bags
+Yes â€” League, Tournament, Practice + variations
+Thumb type per ball (slug/interchangeable/none)
+No
+No
+No
+Yes â€” v1.0
+Pin leave heatmap
+No
+No
+No
+Yes
+PDF export for coach
+No
+No
+No
+v1.5
+Pricing
+$5.99/mo
+$14.99 OTP
+~$9.99/yr
+One-time purchase (TBD)
+Android
+Yes
+No
+Yes
+v2
+
+# 11. Phasing
+## v1.0 â€” Core Loop + Full Equipment Layer (iOS)
+- Bowl tab: pin deck scorecard, structured frame notes (board/breakpoint fields), ball swap, end-of-game card
+- Sessions tab: all session types, session detail with Lane Play Log, inline editing, filtering
+- Stats tab: trend strip, 6 primary tiles, spare breakdown, strike clusters panel, condition compare filter
+- Arsenal tab: bowler profile (PAP primary), ball database search + auto-populate, ball detail with manufacturer specs
+- Thumb type per ball: No Thumb / Slug (brand, material) / Interchangeable (VISE IT, JoPo, Turbo Switch Grip, Monster Grip, Custom â€” hole size, pitch)
+- Layout library: DA and VLS systems, all fields including corrected drilling specs (bridge width, per-finger hole sizes, span convention toggle), active layout per ball with history
+- Layout display: clean formatted numbers in bowling notation â€” 3D visualization is v1.5
+- Surface prep log, performance notes by pattern type, session history per ball
+- Bag builder: league and tournament bags with named variations
+- Ball database: 11 brands, hybrid scraper + QA pipeline, per-weight specs
+- PinPal import: CSV import via iOS Files app, post-import review flow, duplicate detection
+- iCloud sync, local-first offline
+## v1.5 â€” Arsenal Depth + Analysis
+- 3D layout visualization: ball diagram with pin, PAP, and CG geometrically plotted â€” modeled on TenPin Toolkit's layout screen
+- Arsenal chart: configurable axes, all spec options, coverstock color coding â€” Hook Amount and Length user ratings (1-10) added here
+- Ball comparison view: all specs including layout and thumb type fields, diffs highlighted
+- Practice bags
+- Pattern compare: two saved patterns side by side
+- Pin leave heatmap in Spares tab
+- PDF export: single session to PDF for coach sharing
+- Games-since-prep tracker with optional reminder alert
+- Shared core indicator (Brunswick sub-brands)
+## v2.0 â€” Android + Intelligence
+- Android native app (Kotlin / Jetpack Compose), 80%+ feature parity
+- Ball speed and RPM via video â€” in-app measurement (currently handled by TenPin Toolkit)
+- Surface prep reminder â€” push notification when games-since-prep threshold exceeded
+- Pattern-linked bag suggestions: when a pattern is selected, show previously used bags for that pattern
+- Ball database expanded to higher completeness on all weights
+## v3.0 â€” Layout Intelligence
+- Layout recommendation engine: enter PAP, rev rate, axis tilt â€” app suggests layout options for a given ball
+- Axis tilt and rotation measurement via photo (currently handled by TenPin Toolkit)
+- Coach sharing portal: invite a coach to view session history and arsenal
+
+# 13. PinPal Data Import
+PinPal is the incumbent app and many competitive bowlers have years of session history stored in it. A clean import path is critical for adoption â€” losing historical data is a barrier to switching. The bowler who wants to move to Pocket Pro should not have to choose between their history and a better app.
+## 13.1  What PinPal Exports
+PinPal exports session data as a CSV file accessible via the iOS Files app. The following fields are available in the export:
+
+PinPal Export Field
+Maps To in Pocket Pro
+Notes
+Date
+Session.date
+Direct map
+Center / Location
+Location.name
+Creates new Location record if not already in library
+League Name
+Session.league_name
+Direct map
+Game Scores
+Game.final_score (up to 6 per session)
+Direct map
+Frame Pin Counts
+Frame.ball1_pins, ball2_pins, ball3_pins
+Direct map â€” spare leaves re-derived from frame data during import
+Ball Name
+Ball.model (shell record)
+Name only â€” no specs. Creates incomplete ball record flagged for review
+Oil Pattern
+Pattern.name
+Free text â€” pattern type defaults to 'House Shot', flagged for review
+Notes
+Session.notes
+Direct map
+## 13.2  What Doesn't Import
+- Session type â€” PinPal has no league/tournament/practice/misc distinction. All imported sessions default to 'League' and are flagged for re-tagging in a post-import review screen
+- Ball specs â€” PinPal stores ball name only, no RG, differential, layout, or surface data. Imported balls appear as shell records in the arsenal
+- Layout and surface data â€” not stored in PinPal, not importable
+- Spare conversion stats â€” re-derived from frame pin count data during import, so spare tracking history is preserved
+## 13.3  Import Flow
+### Step 1 â€” Initiate
+Settings â†’ Data â†’ Import from PinPal. A one-screen explainer describes what will and won't import. 'Choose File' opens iOS Files app picker.
+### Step 2 â€” Preview
+After file selection, Pocket Pro parses the CSV and shows an import preview screen before anything is written:
+
+Preview Item
+Example
+Sessions found
+247 sessions
+Games found
+689 games
+Date range
+March 2018 â€” May 2026
+Balls detected
+14 unique ball names â€” will create 14 incomplete arsenal records
+Patterns detected
+8 unique pattern names â€” will create 8 pattern records (type: House Shot, review recommended)
+Sessions needing re-tag
+247 sessions imported as League â€” review recommended to tag Tournament and Practice sessions
+Two buttons: 'Import' and 'Cancel'. No partial import option in v1.
+### Step 3 â€” Import
+- Import runs in the background â€” bowler can navigate the app during import
+- Progress indicator in Settings â†’ Data shows percentage complete
+- On completion: push notification 'Import complete â€” 247 sessions imported'
+- Import is additive â€” does not overwrite any existing Pocket Pro data. If a session date and location already exists in Pocket Pro, it is imported alongside (not merged) and flagged as a potential duplicate for the bowler to review
+### Step 4 â€” Post-Import Review
+On next app launch after import, a Review banner appears at top of the Sessions tab:
+- '247 sessions imported from PinPal â€” 3 actions recommended'
+- Action 1: Re-tag sessions â€” filter to imported sessions, mass re-tag any Tournament or Practice sessions
+- Action 2: Complete ball records â€” 14 balls imported with name only. Each has a banner in the Arsenal tab: 'Imported from PinPal â€” tap to search and add specs'
+- Action 3: Review pattern types â€” 8 patterns defaulted to House Shot. Tap to update any that were sport or tournament patterns
+Review banner is dismissible. Recommended actions remain accessible under Settings â†’ Data â†’ Import History at any time.
+## 13.4  Import Integrity Rules
+- Frame data: if a PinPal game has incomplete frame data (PinPal allows final-score-only entry), the game is imported with the final score stored and frame data marked as unavailable. These games are excluded from spare tracking stats but included in average and score history
+- Duplicate detection: if an imported session exactly matches an existing session (same date + location + scores), the bowler is shown both records and asked to keep one or both
+- Ball name matching: if an imported ball name exactly matches a ball already in the Pocket Pro arsenal (case-insensitive), the import links to that existing ball rather than creating a duplicate shell record
+- Re-import safety: running the import again with the same CSV does not create duplicates â€” the import detects previously imported records by a hash of the source data
+
+# 14. Pricing and Monetization
+Defined before v1 ships. Subscription fatigue in the bowling app market is acute â€” LaneTalk's late 2025 paywall migration generated hundreds of 1-star reviews from long-time users. A new entrant cannot afford that trust deficit.
+- one-time purchase, all features unlocked â€” no subscription, no feature tiers: Model
+- $9.99-$14.99 â€” aligns with PinPal precedent and positions below LaneTalk's annual equivalent: Suggested price
+- score tracking and basic stats free; arsenal management, layout library, bag builder, and advanced stats behind one-time unlock: Free tier
+- 'No subscription. No paywall surprises.' â€” direct counter to LaneTalk fatigue: App Store positioning
+- included in purchase â€” not a separate subscription. Database updates are OTA and cost-free to the user: Ball database
+- included in both free and paid tiers â€” import should never be gated. A bowler should not have to pay to recover their own data: PinPal import
+
+# 15. Open Questions
+- Spare classifier launch completeness: all 1,023 pin combinations pre-classified at build time. All boundary cases resolved and documented in Section 5.5.2. Lookup table must be fully validated against real-world leave data before v1 ships.
+- Stats season definition: USBC season (Aug-Jul) or rolling 12 months? Should be user-configurable.
+- Sync conflict resolution: field-level merge vs. last-write-wins on reconnect after offline edits on two devices.
+- PinPal import: CSV import flow to migrate existing PinPal users. Assess export format feasibility before committing to v1.
+- Brunswick scraper rate limiting: 7 separate sites, potentially aggressive bot detection. Assess robots.txt per domain. May require staggered scheduling or proxy rotation.
+- Manufacturer spec corrections: when a manufacturer corrects a previously published spec, the QA flow must handle this without breaking existing user ball records that reference the old spec.
+- Hook Amount and Length ratings (user-defined 1-10 for arsenal chart, v1.5): should these be seeded from manufacturer ball position charts (Storm's reaction chart, Motiv's line chart) or always manually entered by the bowler?
+- Interchangeable thumb system brands: picker pre-populated with VISE IT, JoPo, Turbo Switch Grip, Monster Grip, and Custom. Confirm this is the complete list before v1 ships â€” additional brands can be added via OTA data update without an app release.
+- Layout library â€” sharing: should layouts be shareable between users (e.g., coach sends a layout to a student)? Out of scope for v1 but the data model should not preclude it.
+
+Pocket Pro PRD v4.5 â€” June 2026

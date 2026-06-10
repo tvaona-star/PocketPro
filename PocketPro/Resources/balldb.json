@@ -1,0 +1,707 @@
+{
+  "version": 1,
+  "generated_at": "2026-06-10",
+  "_comment": "SEED DATABASE — development dataset. Real models with representative specs; db_status 'seed' on every record. Replace with verified scraper-pipeline output (PRD 9) before launch. shared_core_id intentionally null in seed data.",
+  "balls": [
+    {
+      "id": "storm-phaze-ii",
+      "manufacturer": "Storm Products Inc.",
+      "brand": "Storm",
+      "brand_status": "active",
+      "model": "Phaze II",
+      "year": 2016,
+      "coverstock_type": "solid",
+      "coverstock_name": "TX-16 Solid Reactive",
+      "core_name": "Velocity",
+      "asymmetric": false,
+      "factory_finish": "3000-grit Abralon",
+      "specs_by_weight": {
+        "14": { "rg": 2.51, "diff": 0.046 },
+        "15": { "rg": 2.48, "diff": 0.051 },
+        "16": { "rg": 2.47, "diff": 0.05 }
+      },
+      "shared_core_id": null,
+      "db_status": "seed"
+    },
+    {
+      "id": "storm-iq-tour",
+      "manufacturer": "Storm Products Inc.",
+      "brand": "Storm",
+      "brand_status": "active",
+      "model": "IQ Tour",
+      "year": 2012,
+      "coverstock_type": "solid",
+      "coverstock_name": "R2S Solid Reactive",
+      "core_name": "C3 Centripetal Control",
+      "asymmetric": false,
+      "factory_finish": "4000-grit Abralon",
+      "specs_by_weight": {
+        "14": { "rg": 2.52, "diff": 0.026 },
+        "15": { "rg": 2.49, "diff": 0.029 },
+        "16": { "rg": 2.48, "diff": 0.028 }
+      },
+      "shared_core_id": null,
+      "db_status": "seed"
+    },
+    {
+      "id": "storm-hy-road",
+      "manufacturer": "Storm Products Inc.",
+      "brand": "Storm",
+      "brand_status": "active",
+      "model": "Hy-Road",
+      "year": 2009,
+      "coverstock_type": "hybrid",
+      "coverstock_name": "R2S Hybrid Reactive",
+      "core_name": "Inverted Fe2 Technology",
+      "asymmetric": false,
+      "factory_finish": "1500-grit Polished",
+      "specs_by_weight": {
+        "14": { "rg": 2.6, "diff": 0.042 },
+        "15": { "rg": 2.57, "diff": 0.046 },
+        "16": { "rg": 2.56, "diff": 0.045 }
+      },
+      "shared_core_id": null,
+      "db_status": "seed"
+    },
+    {
+      "id": "storm-summit",
+      "manufacturer": "Storm Products Inc.",
+      "brand": "Storm",
+      "brand_status": "active",
+      "model": "Summit",
+      "year": 2023,
+      "coverstock_type": "solid",
+      "coverstock_name": "TractionX7 Solid",
+      "core_name": "Everest",
+      "asymmetric": false,
+      "factory_finish": "2000-grit Sanded",
+      "specs_by_weight": {
+        "14": { "rg": 2.51, "diff": 0.047 },
+        "15": { "rg": 2.48, "diff": 0.05 },
+        "16": { "rg": 2.47, "diff": 0.049 }
+      },
+      "shared_core_id": null,
+      "db_status": "seed"
+    },
+    {
+      "id": "rotogrip-hustle-ink",
+      "manufacturer": "Storm Products Inc.",
+      "brand": "Roto Grip",
+      "brand_status": "active",
+      "model": "Hustle Ink",
+      "year": 2016,
+      "coverstock_type": "solid",
+      "coverstock_name": "VTC-S17 Solid",
+      "core_name": "Hustle",
+      "asymmetric": false,
+      "factory_finish": "1500-grit Polished",
+      "specs_by_weight": {
+        "14": { "rg": 2.56, "diff": 0.027 },
+        "15": { "rg": 2.53, "diff": 0.03 },
+        "16": { "rg": 2.52, "diff": 0.029 }
+      },
+      "shared_core_id": null,
+      "db_status": "seed"
+    },
+    {
+      "id": "rotogrip-idol",
+      "manufacturer": "Storm Products Inc.",
+      "brand": "Roto Grip",
+      "brand_status": "active",
+      "model": "Idol",
+      "year": 2018,
+      "coverstock_type": "solid",
+      "coverstock_name": "MicroTrax-S18 Solid",
+      "core_name": "Ikon",
+      "asymmetric": false,
+      "factory_finish": "2000-grit Sanded",
+      "specs_by_weight": {
+        "14": { "rg": 2.52, "diff": 0.048 },
+        "15": { "rg": 2.49, "diff": 0.052 },
+        "16": { "rg": 2.48, "diff": 0.051 }
+      },
+      "shared_core_id": null,
+      "db_status": "seed"
+    },
+    {
+      "id": "rotogrip-idol-pearl",
+      "manufacturer": "Storm Products Inc.",
+      "brand": "Roto Grip",
+      "brand_status": "active",
+      "model": "Idol Pearl",
+      "year": 2019,
+      "coverstock_type": "pearl",
+      "coverstock_name": "MicroTrax-P18 Pearl",
+      "core_name": "Ikon",
+      "asymmetric": false,
+      "factory_finish": "1500-grit Polished",
+      "specs_by_weight": {
+        "14": { "rg": 2.52, "diff": 0.048 },
+        "15": { "rg": 2.49, "diff": 0.052 },
+        "16": { "rg": 2.48, "diff": 0.051 }
+      },
+      "shared_core_id": null,
+      "db_status": "seed"
+    },
+    {
+      "id": "rotogrip-rst-x1",
+      "manufacturer": "Storm Products Inc.",
+      "brand": "Roto Grip",
+      "brand_status": "active",
+      "model": "RST X-1",
+      "year": 2020,
+      "coverstock_type": "solid",
+      "coverstock_name": "eTrax-S20 Solid",
+      "core_name": "RST",
+      "asymmetric": true,
+      "factory_finish": "2000-grit Sanded",
+      "specs_by_weight": {
+        "14": { "rg": 2.55, "diff": 0.05, "int_diff": 0.02 },
+        "15": { "rg": 2.52, "diff": 0.054, "int_diff": 0.021 },
+        "16": { "rg": 2.51, "diff": 0.053, "int_diff": 0.02 }
+      },
+      "shared_core_id": null,
+      "db_status": "seed"
+    },
+    {
+      "id": "900global-zen",
+      "manufacturer": "Storm Products Inc.",
+      "brand": "900 Global",
+      "brand_status": "active",
+      "model": "Zen",
+      "year": 2021,
+      "coverstock_type": "solid",
+      "coverstock_name": "S77 Response Solid",
+      "core_name": "Meditate",
+      "asymmetric": false,
+      "factory_finish": "2000-grit Sanded",
+      "specs_by_weight": {
+        "14": { "rg": 2.54, "diff": 0.049 },
+        "15": { "rg": 2.51, "diff": 0.053 },
+        "16": { "rg": 2.5, "diff": 0.052 }
+      },
+      "shared_core_id": null,
+      "db_status": "seed"
+    },
+    {
+      "id": "900global-reality",
+      "manufacturer": "Storm Products Inc.",
+      "brand": "900 Global",
+      "brand_status": "active",
+      "model": "Reality",
+      "year": 2020,
+      "coverstock_type": "solid",
+      "coverstock_name": "S84 Response Solid",
+      "core_name": "Disturbance",
+      "asymmetric": true,
+      "factory_finish": "2000-grit Sanded",
+      "specs_by_weight": {
+        "14": { "rg": 2.51, "diff": 0.046, "int_diff": 0.014 },
+        "15": { "rg": 2.48, "diff": 0.05, "int_diff": 0.015 },
+        "16": { "rg": 2.47, "diff": 0.049, "int_diff": 0.014 }
+      },
+      "shared_core_id": null,
+      "db_status": "seed"
+    },
+    {
+      "id": "900global-honey-badger",
+      "manufacturer": "Storm Products Inc.",
+      "brand": "900 Global",
+      "brand_status": "active",
+      "model": "Honey Badger",
+      "year": 2019,
+      "coverstock_type": "pearl",
+      "coverstock_name": "S43 Pearl",
+      "core_name": "Badger",
+      "asymmetric": false,
+      "factory_finish": "1500-grit Polished",
+      "specs_by_weight": {
+        "14": { "rg": 2.59, "diff": 0.025 },
+        "15": { "rg": 2.56, "diff": 0.028 },
+        "16": { "rg": 2.55, "diff": 0.027 }
+      },
+      "shared_core_id": null,
+      "db_status": "seed"
+    },
+    {
+      "id": "brunswick-rhino",
+      "manufacturer": "Brunswick Bowling Products",
+      "brand": "Brunswick",
+      "brand_status": "active",
+      "model": "Rhino",
+      "year": 2016,
+      "coverstock_type": "pearl",
+      "coverstock_name": "R-16 Reactive Pearl",
+      "core_name": "Light Bulb",
+      "asymmetric": false,
+      "factory_finish": "500/1000 Siaair Crown Factory Compound",
+      "specs_by_weight": {
+        "14": { "rg": 2.57, "diff": 0.026 },
+        "15": { "rg": 2.54, "diff": 0.03 },
+        "16": { "rg": 2.53, "diff": 0.029 }
+      },
+      "shared_core_id": null,
+      "db_status": "seed"
+    },
+    {
+      "id": "brunswick-tzone-deep-space",
+      "manufacturer": "Brunswick Bowling Products",
+      "brand": "Brunswick",
+      "brand_status": "active",
+      "model": "TZone Deep Space",
+      "year": 2014,
+      "coverstock_type": "polyester",
+      "coverstock_name": "Polyester",
+      "core_name": "Bullet",
+      "asymmetric": false,
+      "factory_finish": "High Gloss Polish",
+      "specs_by_weight": {
+        "14": { "rg": 2.61, "diff": 0.015 },
+        "15": { "rg": 2.58, "diff": 0.019 },
+        "16": { "rg": 2.57, "diff": 0.018 }
+      },
+      "shared_core_id": null,
+      "db_status": "seed"
+    },
+    {
+      "id": "brunswick-knock-out-black-blue",
+      "manufacturer": "Brunswick Bowling Products",
+      "brand": "Brunswick",
+      "brand_status": "active",
+      "model": "Knock Out Black/Blue",
+      "year": 2021,
+      "coverstock_type": "solid",
+      "coverstock_name": "Savvy Hook 4.0 Solid",
+      "core_name": "Melee",
+      "asymmetric": false,
+      "factory_finish": "500/2000 Siaair Micro Pad",
+      "specs_by_weight": {
+        "14": { "rg": 2.53, "diff": 0.044 },
+        "15": { "rg": 2.5, "diff": 0.048 },
+        "16": { "rg": 2.49, "diff": 0.047 }
+      },
+      "shared_core_id": null,
+      "db_status": "seed"
+    },
+    {
+      "id": "brunswick-quantum-evo-solid",
+      "manufacturer": "Brunswick Bowling Products",
+      "brand": "Brunswick",
+      "brand_status": "active",
+      "model": "Quantum Evo Solid",
+      "year": 2022,
+      "coverstock_type": "solid",
+      "coverstock_name": "Evolution Reactive Solid",
+      "core_name": "Quantum Mushroom",
+      "asymmetric": false,
+      "factory_finish": "500/2000 Siaair Micro Pad",
+      "specs_by_weight": {
+        "14": { "rg": 2.55, "diff": 0.048 },
+        "15": { "rg": 2.52, "diff": 0.052 },
+        "16": { "rg": 2.51, "diff": 0.051 }
+      },
+      "shared_core_id": null,
+      "db_status": "seed"
+    },
+    {
+      "id": "hammer-black-widow-2",
+      "manufacturer": "Brunswick Bowling Products",
+      "brand": "Hammer",
+      "brand_status": "active",
+      "model": "Black Widow 2.0",
+      "year": 2021,
+      "coverstock_type": "hybrid",
+      "coverstock_name": "Aggression Hybrid",
+      "core_name": "Gas Mask",
+      "asymmetric": true,
+      "factory_finish": "500/1000 Abralon",
+      "specs_by_weight": {
+        "14": { "rg": 2.53, "diff": 0.054, "int_diff": 0.015 },
+        "15": { "rg": 2.5, "diff": 0.058, "int_diff": 0.016 },
+        "16": { "rg": 2.49, "diff": 0.057, "int_diff": 0.015 }
+      },
+      "shared_core_id": null,
+      "db_status": "seed"
+    },
+    {
+      "id": "hammer-raw-pearl",
+      "manufacturer": "Brunswick Bowling Products",
+      "brand": "Hammer",
+      "brand_status": "active",
+      "model": "Raw Hammer Pearl",
+      "year": 2020,
+      "coverstock_type": "pearl",
+      "coverstock_name": "Juiced Pearl",
+      "core_name": "Raw Hammer",
+      "asymmetric": false,
+      "factory_finish": "500/1000/2000 Siaair Polished",
+      "specs_by_weight": {
+        "14": { "rg": 2.56, "diff": 0.029 },
+        "15": { "rg": 2.53, "diff": 0.033 },
+        "16": { "rg": 2.52, "diff": 0.032 }
+      },
+      "shared_core_id": null,
+      "db_status": "seed"
+    },
+    {
+      "id": "hammer-obsession-tour",
+      "manufacturer": "Brunswick Bowling Products",
+      "brand": "Hammer",
+      "brand_status": "active",
+      "model": "Obsession Tour",
+      "year": 2021,
+      "coverstock_type": "solid",
+      "coverstock_name": "Envy Tour Solid",
+      "core_name": "Obsession",
+      "asymmetric": false,
+      "factory_finish": "500/2000 Siaair Micro Pad",
+      "specs_by_weight": {
+        "14": { "rg": 2.51, "diff": 0.043 },
+        "15": { "rg": 2.48, "diff": 0.047 },
+        "16": { "rg": 2.47, "diff": 0.046 }
+      },
+      "shared_core_id": null,
+      "db_status": "seed"
+    },
+    {
+      "id": "dv8-diva",
+      "manufacturer": "Brunswick Bowling Products",
+      "brand": "DV8",
+      "brand_status": "active",
+      "model": "Diva",
+      "year": 2012,
+      "coverstock_type": "pearl",
+      "coverstock_name": "Class 6.6 Pearl",
+      "core_name": "Diva",
+      "asymmetric": false,
+      "factory_finish": "500/1000/2000 Siaair Polished",
+      "specs_by_weight": {
+        "14": { "rg": 2.53, "diff": 0.044 },
+        "15": { "rg": 2.5, "diff": 0.048 },
+        "16": { "rg": 2.49, "diff": 0.047 }
+      },
+      "shared_core_id": null,
+      "db_status": "seed"
+    },
+    {
+      "id": "dv8-pitbull-bite",
+      "manufacturer": "Brunswick Bowling Products",
+      "brand": "DV8",
+      "brand_status": "active",
+      "model": "Pitbull Bite",
+      "year": 2016,
+      "coverstock_type": "solid",
+      "coverstock_name": "Composite Fang Solid",
+      "core_name": "Pitbull",
+      "asymmetric": true,
+      "factory_finish": "500/2000 Siaair Micro Pad",
+      "specs_by_weight": {
+        "14": { "rg": 2.52, "diff": 0.05, "int_diff": 0.017 },
+        "15": { "rg": 2.49, "diff": 0.054, "int_diff": 0.018 },
+        "16": { "rg": 2.48, "diff": 0.053, "int_diff": 0.017 }
+      },
+      "shared_core_id": null,
+      "db_status": "seed"
+    },
+    {
+      "id": "dv8-brawler",
+      "manufacturer": "Brunswick Bowling Products",
+      "brand": "DV8",
+      "brand_status": "active",
+      "model": "Brawler",
+      "year": 2019,
+      "coverstock_type": "hybrid",
+      "coverstock_name": "Inciter Max Flip Hybrid",
+      "core_name": "Brawler",
+      "asymmetric": false,
+      "factory_finish": "500/1000 Siaair Crown Factory Compound",
+      "specs_by_weight": {
+        "14": { "rg": 2.55, "diff": 0.031 },
+        "15": { "rg": 2.52, "diff": 0.035 },
+        "16": { "rg": 2.51, "diff": 0.034 }
+      },
+      "shared_core_id": null,
+      "db_status": "seed"
+    },
+    {
+      "id": "radical-conspiracy-theory",
+      "manufacturer": "Brunswick Bowling Products",
+      "brand": "Radical",
+      "brand_status": "active",
+      "model": "Conspiracy Theory",
+      "year": 2019,
+      "coverstock_type": "solid",
+      "coverstock_name": "TH1NK Solid",
+      "core_name": "Conspiracy",
+      "asymmetric": true,
+      "factory_finish": "500/2000 Siaair Micro Pad",
+      "specs_by_weight": {
+        "14": { "rg": 2.51, "diff": 0.05, "int_diff": 0.016 },
+        "15": { "rg": 2.48, "diff": 0.054, "int_diff": 0.017 },
+        "16": { "rg": 2.47, "diff": 0.053, "int_diff": 0.016 }
+      },
+      "shared_core_id": null,
+      "db_status": "seed"
+    },
+    {
+      "id": "radical-outer-limits",
+      "manufacturer": "Brunswick Bowling Products",
+      "brand": "Radical",
+      "brand_status": "active",
+      "model": "Outer Limits",
+      "year": 2021,
+      "coverstock_type": "hybrid",
+      "coverstock_name": "Ai-40 Hybrid",
+      "core_name": "Outer Limits",
+      "asymmetric": true,
+      "factory_finish": "500/1500 Siaair Polished",
+      "specs_by_weight": {
+        "14": { "rg": 2.52, "diff": 0.051, "int_diff": 0.018 },
+        "15": { "rg": 2.49, "diff": 0.055, "int_diff": 0.019 },
+        "16": { "rg": 2.48, "diff": 0.054, "int_diff": 0.018 }
+      },
+      "shared_core_id": null,
+      "db_status": "seed"
+    },
+    {
+      "id": "track-paradox-black",
+      "manufacturer": "Brunswick Bowling Products",
+      "brand": "Track",
+      "brand_status": "active",
+      "model": "Paradox Black",
+      "year": 2017,
+      "coverstock_type": "solid",
+      "coverstock_name": "Prime Response Solid",
+      "core_name": "i-Core 2.0",
+      "asymmetric": true,
+      "factory_finish": "500/2000 Siaair Micro Pad",
+      "specs_by_weight": {
+        "14": { "rg": 2.51, "diff": 0.049, "int_diff": 0.016 },
+        "15": { "rg": 2.48, "diff": 0.053, "int_diff": 0.017 },
+        "16": { "rg": 2.47, "diff": 0.052, "int_diff": 0.016 }
+      },
+      "shared_core_id": null,
+      "db_status": "seed"
+    },
+    {
+      "id": "track-kinetic-emerald",
+      "manufacturer": "Brunswick Bowling Products",
+      "brand": "Track",
+      "brand_status": "active",
+      "model": "Kinetic Emerald",
+      "year": 2020,
+      "coverstock_type": "solid",
+      "coverstock_name": "DR-7 Solid",
+      "core_name": "Kinetic",
+      "asymmetric": false,
+      "factory_finish": "500/2000 Siaair Micro Pad",
+      "specs_by_weight": {
+        "14": { "rg": 2.58, "diff": 0.03 },
+        "15": { "rg": 2.55, "diff": 0.034 },
+        "16": { "rg": 2.54, "diff": 0.033 }
+      },
+      "shared_core_id": null,
+      "db_status": "seed"
+    },
+    {
+      "id": "ebonite-maxim",
+      "manufacturer": "Brunswick Bowling Products",
+      "brand": "Ebonite",
+      "brand_status": "active",
+      "model": "Maxim",
+      "year": 2010,
+      "coverstock_type": "polyester",
+      "coverstock_name": "Polyester",
+      "core_name": "Pancake",
+      "asymmetric": false,
+      "factory_finish": "High Gloss Polish",
+      "specs_by_weight": {
+        "14": { "rg": 2.63, "diff": 0.012 },
+        "15": { "rg": 2.6, "diff": 0.016 },
+        "16": { "rg": 2.59, "diff": 0.015 }
+      },
+      "shared_core_id": null,
+      "db_status": "seed"
+    },
+    {
+      "id": "ebonite-gamebreaker-4",
+      "manufacturer": "Brunswick Bowling Products",
+      "brand": "Ebonite",
+      "brand_status": "active",
+      "model": "GameBreaker 4",
+      "year": 2021,
+      "coverstock_type": "hybrid",
+      "coverstock_name": "GB 14.2 Hybrid",
+      "core_name": "Enhanced V2",
+      "asymmetric": false,
+      "factory_finish": "500/1000 Siaair Crown Factory Compound",
+      "specs_by_weight": {
+        "14": { "rg": 2.51, "diff": 0.044 },
+        "15": { "rg": 2.48, "diff": 0.048 },
+        "16": { "rg": 2.47, "diff": 0.047 }
+      },
+      "shared_core_id": null,
+      "db_status": "seed"
+    },
+    {
+      "id": "ebonite-the-one-remix",
+      "manufacturer": "Brunswick Bowling Products",
+      "brand": "Ebonite",
+      "brand_status": "active",
+      "model": "The One Remix",
+      "year": 2019,
+      "coverstock_type": "solid",
+      "coverstock_name": "GB 13.2 Solid",
+      "core_name": "The One",
+      "asymmetric": true,
+      "factory_finish": "500/2000 Siaair Micro Pad",
+      "specs_by_weight": {
+        "14": { "rg": 2.51, "diff": 0.05, "int_diff": 0.014 },
+        "15": { "rg": 2.48, "diff": 0.054, "int_diff": 0.015 },
+        "16": { "rg": 2.47, "diff": 0.053, "int_diff": 0.014 }
+      },
+      "shared_core_id": null,
+      "db_status": "seed"
+    },
+    {
+      "id": "columbia300-white-dot",
+      "manufacturer": "Brunswick Bowling Products",
+      "brand": "Columbia 300",
+      "brand_status": "retired",
+      "model": "White Dot",
+      "year": 1970,
+      "coverstock_type": "polyester",
+      "coverstock_name": "Polyester",
+      "core_name": "Pancake",
+      "asymmetric": false,
+      "factory_finish": "High Gloss Polish",
+      "specs_by_weight": {
+        "14": { "rg": 2.63, "diff": 0.012 },
+        "15": { "rg": 2.6, "diff": 0.015 },
+        "16": { "rg": 2.59, "diff": 0.014 }
+      },
+      "shared_core_id": null,
+      "db_status": "seed"
+    },
+    {
+      "id": "columbia300-beast",
+      "manufacturer": "Brunswick Bowling Products",
+      "brand": "Columbia 300",
+      "brand_status": "retired",
+      "model": "Beast",
+      "year": 2015,
+      "coverstock_type": "pearl",
+      "coverstock_name": "Bend-It Pearl Reactive",
+      "core_name": "Blender",
+      "asymmetric": false,
+      "factory_finish": "Polished",
+      "specs_by_weight": {
+        "14": { "rg": 2.58, "diff": 0.026 },
+        "15": { "rg": 2.55, "diff": 0.03 },
+        "16": { "rg": 2.54, "diff": 0.029 }
+      },
+      "shared_core_id": null,
+      "db_status": "seed"
+    },
+    {
+      "id": "motiv-venom-shock",
+      "manufacturer": "Motiv",
+      "brand": "Motiv",
+      "brand_status": "active",
+      "model": "Venom Shock",
+      "year": 2014,
+      "coverstock_type": "solid",
+      "coverstock_name": "Turmoil MFS Reactive",
+      "core_name": "Gear",
+      "asymmetric": false,
+      "factory_finish": "4000-grit LSS",
+      "specs_by_weight": {
+        "14": { "rg": 2.53, "diff": 0.039 },
+        "15": { "rg": 2.5, "diff": 0.043 },
+        "16": { "rg": 2.49, "diff": 0.042 }
+      },
+      "shared_core_id": null,
+      "db_status": "seed"
+    },
+    {
+      "id": "motiv-jackal-ghost",
+      "manufacturer": "Motiv",
+      "brand": "Motiv",
+      "brand_status": "active",
+      "model": "Jackal Ghost",
+      "year": 2018,
+      "coverstock_type": "solid",
+      "coverstock_name": "Coercion HFS Reactive",
+      "core_name": "Predator V2",
+      "asymmetric": true,
+      "factory_finish": "2000-grit LSS",
+      "specs_by_weight": {
+        "14": { "rg": 2.5, "diff": 0.05, "int_diff": 0.015 },
+        "15": { "rg": 2.47, "diff": 0.054, "int_diff": 0.016 },
+        "16": { "rg": 2.46, "diff": 0.053, "int_diff": 0.015 }
+      },
+      "shared_core_id": null,
+      "db_status": "seed"
+    },
+    {
+      "id": "motiv-sky-raptor",
+      "manufacturer": "Motiv",
+      "brand": "Motiv",
+      "brand_status": "active",
+      "model": "Sky Raptor",
+      "year": 2021,
+      "coverstock_type": "pearl",
+      "coverstock_name": "Hexion XLB Pearl",
+      "core_name": "Affliction V2",
+      "asymmetric": true,
+      "factory_finish": "5500-grit LSP",
+      "specs_by_weight": {
+        "14": { "rg": 2.51, "diff": 0.05, "int_diff": 0.017 },
+        "15": { "rg": 2.48, "diff": 0.054, "int_diff": 0.018 },
+        "16": { "rg": 2.47, "diff": 0.053, "int_diff": 0.017 }
+      },
+      "shared_core_id": null,
+      "db_status": "seed"
+    },
+    {
+      "id": "motiv-thrill-blue-white",
+      "manufacturer": "Motiv",
+      "brand": "Motiv",
+      "brand_status": "active",
+      "model": "Thrill Blue/White Pearl",
+      "year": 2019,
+      "coverstock_type": "pearl",
+      "coverstock_name": "Agitator Pearl Reactive",
+      "core_name": "Halogen",
+      "asymmetric": false,
+      "factory_finish": "5500-grit LSP",
+      "specs_by_weight": {
+        "14": { "rg": 2.6, "diff": 0.024 },
+        "15": { "rg": 2.57, "diff": 0.028 },
+        "16": { "rg": 2.56, "diff": 0.027 }
+      },
+      "shared_core_id": null,
+      "db_status": "seed"
+    },
+    {
+      "id": "motiv-supra",
+      "manufacturer": "Motiv",
+      "brand": "Motiv",
+      "brand_status": "active",
+      "model": "Supra",
+      "year": 2020,
+      "coverstock_type": "pearl",
+      "coverstock_name": "Propulsion DRS Pearl",
+      "core_name": "Hyper-Torque",
+      "asymmetric": false,
+      "factory_finish": "5500-grit LSP",
+      "specs_by_weight": {
+        "14": { "rg": 2.55, "diff": 0.042 },
+        "15": { "rg": 2.52, "diff": 0.046 },
+        "16": { "rg": 2.51, "diff": 0.045 }
+      },
+      "shared_core_id": null,
+      "db_status": "seed"
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+# Normalize to LF in the repo (built on Windows, compiled on macOS CI)
+* text=auto eol=lf
+*.ps1 text eol=crlf
+*.docx binary
+*.png binary
