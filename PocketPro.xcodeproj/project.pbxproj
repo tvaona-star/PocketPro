@@ -33,7 +33,6 @@
 		AA10000000000000000000M1 = {
 			isa = PBXGroup;
 			children = (
-				AA10000000000000000000L1 /* PocketProCore */,
 				AA10000000000000000000G1 /* PocketPro */,
 				AA10000000000000000000R1 /* Products */,
 			);
