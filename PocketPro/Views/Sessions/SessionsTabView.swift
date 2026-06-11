@@ -2,80 +2,115 @@ import SwiftUI
 import SwiftData
 import PocketProCore
 
-/// Sessions tab (PRD 5.2): post-game review with stacking filters.
+/// Sessions tab (PRD 5.2): leagues grouped together; tournaments and practice
+/// sessions listed separately. Create a league, then add a week each time you bowl.
 struct SessionsTabView: View {
     @Environment(\.modelContext) private var context
     @Query(sort: \Session.date, order: .reverse) private var allSessions: [Session]
+    @Query private var leagueEvents: [LeagueEvent]
     @Query(filter: #Predicate<Ball> { $0.active }) private var arsenal: [Ball]
 
-    @State private var typeFilter: SessionType?
-    @State private var filters = SessionFilters()
-    @State private var showingFilters = false
+    @State private var showingNewLeague = false
 
     private var importReviewCount: Int {
         allSessions.filter { $0.importedFromPinPal && $0.needsTypeReview }.count
     }
 
-    private var filtered: [Session] {
-        allSessions.filter { session in
-            if session.isActive { return false }
-            if let typeFilter, session.type != typeFilter { return false }
-            return filters.matches(session)
+    private struct LeagueGroup: Identifiable {
+        let name: String
+        let weeks: [Session]
+        var id: String { name.lowercased() }
+        var latest: Date { weeks.first?.date ?? .distantPast }
+        var average: Double? {
+            let scores = weeks.flatMap { $0.sortedGames }.map { $0.finalScore }.filter { $0 > 0 }
+            guard !scores.isEmpty else { return nil }
+            return Double(scores.reduce(0, +)) / Double(scores.count)
         }
+    }
+
+    /// One group per league name — from league-type sessions and created leagues.
+    private var leagues: [LeagueGroup] {
+        var names: [String] = []
+        var seen = Set<String>()
+        func add(_ raw: String) {
+            let key = raw.lowercased()
+            if !raw.isEmpty, !seen.contains(key) { seen.insert(key); names.append(raw) }
+        }
+        for session in allSessions where !session.isActive && session.type == .league {
+            if let name = session.leagueName { add(name) }
+        }
+        for event in leagueEvents where event.kind == .league && !event.isArchived {
+            add(event.name)
+        }
+        return names.map { name in
+            let weeks = allSessions.filter {
+                !$0.isActive && $0.type == .league
+                    && ($0.leagueName ?? "").caseInsensitiveCompare(name) == .orderedSame
+            }
+            return LeagueGroup(name: name, weeks: weeks)
+        }
+        .sorted { $0.latest > $1.latest }
+    }
+
+    private var otherSessions: [Session] {
+        allSessions.filter { !$0.isActive && $0.type != .league }
     }
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                Picker("Type", selection: $typeFilter) {
-                    Text("All").tag(SessionType?.none)
-                    ForEach(SessionType.allCases) { type in
-                        Text(type.displayName).tag(SessionType?.some(type))
-                    }
-                }
-                .pickerStyle(.segmented)
-                .padding(.horizontal)
-                .padding(.bottom, 8)
-
-                if filters.isActive {
-                    activeFilterChips
-                }
-
-                if importReviewCount > 0 {
-                    ImportReviewBanner(count: importReviewCount)
-                        .padding(.horizontal)
-                        .padding(.bottom, 6)
-                }
-
-                if filtered.isEmpty {
-                    Spacer()
+            Group {
+                if leagues.isEmpty && otherSessions.isEmpty {
                     EmptyStateView(
                         icon: "list.bullet.rectangle",
-                        title: allSessions.isEmpty ? "No sessions yet" : "No matching sessions",
-                        message: allSessions.isEmpty
-                            ? "Start a session to track your game."
-                            : "Try removing a filter."
+                        title: "No sessions yet",
+                        message: "Create a league, or start a session from the Bowl tab.",
+                        actionTitle: "New League",
+                        action: { showingNewLeague = true }
                     )
-                    Spacer()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     List {
-                        ForEach(filtered) { session in
-                            ZStack {
-                                NavigationLink {
-                                    SessionDetailView(session: session)
-                                } label: {
-                                    EmptyView()
-                                }
-                                .opacity(0)
-                                SessionCard(session: session, arsenal: arsenal)
-                            }
-                            .listRowBackground(Color.clear)
-                            .listRowSeparator(.hidden)
-                            .listRowInsets(EdgeInsets(top: 5, leading: 16, bottom: 5, trailing: 16))
+                        if importReviewCount > 0 {
+                            ImportReviewBanner(count: importReviewCount)
+                                .listRowBackground(Color.clear)
+                                .listRowSeparator(.hidden)
+                                .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
                         }
-                        .onDelete { offsets in
-                            for index in offsets {
-                                context.delete(filtered[index])
+
+                        if !leagues.isEmpty {
+                            Section("Leagues") {
+                                ForEach(leagues) { group in
+                                    ZStack {
+                                        NavigationLink {
+                                            LeagueDetailView(leagueName: group.name)
+                                        } label: { EmptyView() }
+                                        .opacity(0)
+                                        leagueRow(group)
+                                    }
+                                    .listRowBackground(Color.clear)
+                                    .listRowSeparator(.hidden)
+                                    .listRowInsets(EdgeInsets(top: 5, leading: 16, bottom: 5, trailing: 16))
+                                }
+                            }
+                        }
+
+                        if !otherSessions.isEmpty {
+                            Section("Tournaments & Practice") {
+                                ForEach(otherSessions) { session in
+                                    ZStack {
+                                        NavigationLink {
+                                            SessionDetailView(session: session)
+                                        } label: { EmptyView() }
+                                        .opacity(0)
+                                        SessionCard(session: session, arsenal: arsenal)
+                                    }
+                                    .listRowBackground(Color.clear)
+                                    .listRowSeparator(.hidden)
+                                    .listRowInsets(EdgeInsets(top: 5, leading: 16, bottom: 5, trailing: 16))
+                                }
+                                .onDelete { offsets in
+                                    for index in offsets { context.delete(otherSessions[index]) }
+                                }
                             }
                         }
                     }
@@ -88,38 +123,51 @@ struct SessionsTabView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button {
-                        showingFilters = true
+                        showingNewLeague = true
                     } label: {
-                        Image(systemName: filters.isActive ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+                        Label("New League", systemImage: "plus")
                     }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     SettingsToolbarLink()
                 }
             }
-            .sheet(isPresented: $showingFilters) {
-                SessionFilterSheet(filters: $filters, sessions: allSessions, arsenal: arsenal)
-                    .presentationDetents([.medium, .large])
-                    .presentationDragIndicator(.visible)
+            .sheet(isPresented: $showingNewLeague) {
+                NewLeagueSheet()
+                    .presentationDetents([.medium])
             }
         }
     }
 
-    private var activeFilterChips: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(filters.chips(arsenal: arsenal), id: \.id) { chip in
-                    // Tapping anywhere on an active chip removes it — not only the × (PRD 5.2).
-                    FilterChip(label: chip.label, isActive: true, onTap: {
-                        filters.remove(chip.id)
-                    }, onDismiss: {
-                        filters.remove(chip.id)
-                    })
+    private func leagueRow(_ group: LeagueGroup) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: "trophy.fill")
+                .font(.system(size: 16))
+                .foregroundStyle(Theme.accent)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(group.name)
+                    .font(Theme.cardTitle)
+                    .foregroundStyle(Theme.textPrimary)
+                Text("\(group.weeks.count) week\(group.weeks.count == 1 ? "" : "s")")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.textSecondary)
+            }
+            Spacer()
+            if let avg = group.average {
+                VStack(alignment: .trailing, spacing: 1) {
+                    Text(Notation.oneDecimal(avg))
+                        .font(.system(size: 17, weight: .bold).monospacedDigit())
+                        .foregroundStyle(Theme.textPrimary)
+                    Text("AVG")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(Theme.textMuted)
                 }
             }
-            .padding(.horizontal)
+            Image(systemName: "chevron.right")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Theme.textMuted)
         }
-        .padding(.bottom, 8)
+        .card()
     }
 }
 

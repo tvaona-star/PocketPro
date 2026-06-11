@@ -58,6 +58,10 @@ final class LeagueEvent {
     var kindRaw: String = LeagueEventKind.league.rawValue
     var createdAt: Date = Date()
     var isArchived: Bool = false
+    /// When the league season started (PRD 5.2). nil for tournaments.
+    var startDate: Date?
+    /// Games bowled each week — pre-fills the week's scorecard (PRD 5.2).
+    var gamesPerWeek: Int = 3
 
     @Relationship(deleteRule: .nullify, inverse: \Session.leagueEvent)
     var sessions: [Session]? = []
@@ -67,6 +71,11 @@ final class LeagueEvent {
     var kind: LeagueEventKind {
         get { LeagueEventKind(rawValue: kindRaw) ?? .league }
         set { kindRaw = newValue.rawValue }
+    }
+
+    /// Weeks (sessions) bowled in this league, newest first.
+    var weeks: [Session] {
+        (sessions ?? []).sorted { $0.date > $1.date }
     }
 }
 
