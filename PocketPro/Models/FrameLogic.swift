@@ -108,7 +108,7 @@ extension Game {
             id: id,
             sessionID: session?.id ?? UUID(),
             date: session?.date ?? Date(),
-            sessionType: session?.type ?? .misc,
+            sessionType: session?.type ?? .practice,
             frames: hasFrameData ? frameCounts : [],
             finalScore: finalScore,
             leaves: hasFrameData ? derivedLeaves() : [],

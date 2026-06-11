@@ -5,7 +5,6 @@ public enum SessionType: String, Codable, CaseIterable, Sendable, Identifiable {
     case league
     case tournament
     case practice
-    case misc
 
     public var id: String { rawValue }
 
@@ -14,7 +13,6 @@ public enum SessionType: String, Codable, CaseIterable, Sendable, Identifiable {
         case .league: return "League"
         case .tournament: return "Tournament"
         case .practice: return "Practice"
-        case .misc: return "Misc"
         }
     }
 }

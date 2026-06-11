@@ -35,6 +35,41 @@ final class BowlerProfile {
     }
 }
 
+// MARK: - League / Tournament (PRD 5.2: recurring leagues vs one-off tournaments)
+
+/// Distinguishes a recurring league from a one-off tournament. Both are stored as
+/// `LeagueEvent` records and presented as distinct concepts in the UI.
+enum LeagueEventKind: String, Codable, CaseIterable, Identifiable, Sendable {
+    case league
+    case tournament
+
+    var id: String { rawValue }
+    var displayName: String { self == .league ? "League" : "Tournament" }
+    /// The matching SessionType for a session that belongs to this kind.
+    var sessionType: SessionType { self == .league ? .league : .tournament }
+}
+
+/// A named league (recurring) or tournament (one-off) you create once and reuse.
+/// Sessions link to it; stats filter by it (PRD 5.2, 5.3).
+@Model
+final class LeagueEvent {
+    var id: UUID = UUID()
+    var name: String = ""
+    var kindRaw: String = LeagueEventKind.league.rawValue
+    var createdAt: Date = Date()
+    var isArchived: Bool = false
+
+    @Relationship(deleteRule: .nullify, inverse: \Session.leagueEvent)
+    var sessions: [Session]? = []
+
+    init() {}
+
+    var kind: LeagueEventKind {
+        get { LeagueEventKind(rawValue: kindRaw) ?? .league }
+        set { kindRaw = newValue.rawValue }
+    }
+}
+
 // MARK: - Session / Game / Frame (PRD 5.1, 5.2)
 
 @Model
@@ -52,6 +87,9 @@ final class Session {
     var location: Location?
     var pattern: Pattern?
     var bag: Bag?
+    /// The recurring league or one-off tournament this session belongs to (PRD 5.2).
+    /// nil for practice. leagueName/eventName below remain as display caches.
+    var leagueEvent: LeagueEvent?
     /// Ad-hoc "balls in bag today" multi-select (PRD 5.1) — pre-populates the ball picker.
     var todaysBallIDs: [UUID] = []
 

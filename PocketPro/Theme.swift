@@ -72,7 +72,6 @@ enum Theme {
         case .league: return accent
         case .tournament: return Color.adaptive(dark: 0xA855F7, light: 0x9333EA)
         case .practice: return success
-        case .misc: return textMuted
         }
     }
 

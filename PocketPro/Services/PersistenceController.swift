@@ -8,6 +8,7 @@ enum PersistenceController {
 
     static let schema = Schema([
         BowlerProfile.self,
+        LeagueEvent.self,
         Session.self,
         Game.self,
         Frame.self,

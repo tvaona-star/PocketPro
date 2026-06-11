@@ -50,6 +50,7 @@ struct SessionSetupSheet: View {
     @Query(filter: #Predicate<Ball> { $0.active }) private var arsenal: [Ball]
     @Query(sort: \Pattern.createdAt, order: .reverse) private var patterns: [Pattern]
     @Query private var locations: [Location]
+    @Query(sort: \LeagueEvent.createdAt, order: .reverse) private var leagueEvents: [LeagueEvent]
 
     @State private var type: SessionType = .league
     @State private var name = ""
@@ -58,15 +59,23 @@ struct SessionSetupSheet: View {
     @State private var showingPatternPicker = false
     @State private var selectedBallIDs: Set<UUID> = []
 
-    private var recentNames: [String] {
-        var seen: [String] = []
-        for session in pastSessions where session.type == type {
-            if let league = session.leagueName, !league.isEmpty, !seen.contains(league) {
-                seen.append(league)
-            }
-            if seen.count >= 4 { break }
+    /// The LeagueEvent kind matching the current session type (nil for practice).
+    private var selectedKind: LeagueEventKind? {
+        switch type {
+        case .league: return .league
+        case .tournament: return .tournament
+        case .practice: return nil
         }
-        return seen
+    }
+
+    /// Already-created leagues/tournaments of the selected kind, newest first —
+    /// tap one to bowl under it.
+    private var recentNames: [String] {
+        guard let selectedKind else { return [] }
+        return leagueEvents
+            .filter { $0.kind == selectedKind && !$0.isArchived }
+            .map(\.name)
+            .filter { !$0.isEmpty }
     }
 
     private var recentLocations: [String] {
@@ -220,11 +229,20 @@ struct SessionSetupSheet: View {
         session.type = type
         session.isActive = true
         session.date = Date()
-        if type == .league {
-            session.leagueName = name.isEmpty ? nil : name
-        } else if type == .tournament {
-            session.eventName = name.isEmpty ? nil : name
-            session.leagueName = name.isEmpty ? nil : name
+
+        // Link (or create) the league/tournament record, and mirror its name into
+        // the display caches the rest of the UI already reads.
+        if let kind = selectedKind, !name.isEmpty {
+            let event = leagueEvents.first {
+                $0.kind == kind && $0.name.caseInsensitiveCompare(name) == .orderedSame
+            } ?? newLeagueEvent(name: name, kind: kind)
+            session.leagueEvent = event
+            if kind == .league {
+                session.leagueName = name
+            } else {
+                session.eventName = name
+                session.leagueName = name
+            }
         }
         if !locationName.isEmpty {
             if let existing = locations.first(where: { $0.name.caseInsensitiveCompare(locationName) == .orderedSame }) {
@@ -247,6 +265,14 @@ struct SessionSetupSheet: View {
         context.insert(game)
 
         dismiss()
+    }
+
+    private func newLeagueEvent(name: String, kind: LeagueEventKind) -> LeagueEvent {
+        let event = LeagueEvent()
+        event.name = name
+        event.kind = kind
+        context.insert(event)
+        return event
     }
 }
 
