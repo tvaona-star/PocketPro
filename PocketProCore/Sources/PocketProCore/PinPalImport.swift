@@ -9,10 +9,15 @@ public enum PinPalImport {
         public let finalScore: Int
         /// Per-frame ball pinfall counts; nil when PinPal exported only a final score.
         public let frames: [[Int]]?
+        /// Standing-pin mask after each ball, parallel to `frames` (PocketPro PinSet
+        /// bits: bit `pin-1`). nil when only counts — or only the score — were available.
+        /// Present means leave/spare history can be reconstructed for this game.
+        public let frameMasks: [[Int]]?
 
-        public init(finalScore: Int, frames: [[Int]]?) {
+        public init(finalScore: Int, frames: [[Int]]?, frameMasks: [[Int]]? = nil) {
             self.finalScore = finalScore
             self.frames = frames
+            self.frameMasks = frameMasks
         }
     }
 
@@ -111,8 +116,18 @@ public enum PinPalImport {
                     continue
                 }
                 var frames: [[Int]]?
+                var frameMasks: [[Int]]?
                 if let frameString = field(framesIdx) {
-                    if let parsed = parseFrames(frameString) {
+                    // Prefer the richer count:mask format (carries pin identity for
+                    // leave/spare history); fall back to count-only frames.
+                    if let (counts, masks) = parseFramesAndMasks(frameString) {
+                        if ScoringEngine.score(frames: counts).final == score {
+                            frames = counts
+                            frameMasks = masks
+                        } else {
+                            issues.append(RowIssue(row: rowIndex + 1, message: "Frame data does not match score \(score) — kept score only"))
+                        }
+                    } else if let parsed = parseFrames(frameString) {
                         // Trust frame data only when it reproduces the exported score.
                         if ScoringEngine.score(frames: parsed).final == score {
                             frames = parsed
@@ -123,7 +138,7 @@ public enum PinPalImport {
                         issues.append(RowIssue(row: rowIndex + 1, message: "Unreadable frame data — kept score only"))
                     }
                 }
-                games.append(ImportedGame(finalScore: score, frames: frames))
+                games.append(ImportedGame(finalScore: score, frames: frames, frameMasks: frameMasks))
             }
 
             if games.isEmpty {
@@ -184,6 +199,37 @@ public enum PinPalImport {
         }
         guard ScoringEngine.isGameComplete(frames: frames) else { return nil }
         return frames
+    }
+
+    /// Richer frame string carrying pin identity: each ball is `count:mask`, where
+    /// mask is the standing-pin bitset after the ball (PocketPro PinSet bits).
+    /// Example: `8:6,2:0|10:0|9:512,1:0|...`. Returns the counts and the parallel
+    /// masks, or nil if the string isn't in this format / isn't a complete game.
+    static func parseFramesAndMasks(_ raw: String) -> (counts: [[Int]], masks: [[Int]])? {
+        guard raw.contains(":") else { return nil }
+        let frameParts = raw.split(separator: "|", omittingEmptySubsequences: false)
+        guard frameParts.count == 10 else { return nil }
+        var counts: [[Int]] = []
+        var masks: [[Int]] = []
+        for part in frameParts {
+            let ballTokens = part.split(separator: ",")
+            guard !ballTokens.isEmpty else { return nil }
+            var frameCounts: [Int] = []
+            var frameMasks: [Int] = []
+            for token in ballTokens {
+                let pair = token.split(separator: ":")
+                guard pair.count == 2,
+                      let c = Int(pair[0].trimmingCharacters(in: .whitespaces)),
+                      let m = Int(pair[1].trimmingCharacters(in: .whitespaces)),
+                      (0...10).contains(c), (0...0x3FF).contains(m) else { return nil }
+                frameCounts.append(c)
+                frameMasks.append(m)
+            }
+            counts.append(frameCounts)
+            masks.append(frameMasks)
+        }
+        guard ScoringEngine.isGameComplete(frames: counts) else { return nil }
+        return (counts, masks)
     }
 
     static func parseDate(_ raw: String) -> Date? {

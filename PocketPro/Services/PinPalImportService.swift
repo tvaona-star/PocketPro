@@ -179,8 +179,13 @@ final class PinPalImportService {
                         let frame = Frame()
                         frame.number = frameIndex + 1
                         frame.game = game
-                        // Counts only — pin identity unknown (DECISIONS.md D12).
-                        frame.balls = counts.map { BallEntry(count: $0, standingAfterMask: nil) }
+                        // Carry pin identity (standing-pin masks) when the export
+                        // provided it, so leaves/spares reconstruct; else counts only.
+                        let frameMasks = sourceGame.frameMasks?[frameIndex]
+                        frame.balls = counts.enumerated().map { ballIndex, count in
+                            let mask = (frameMasks != nil && ballIndex < frameMasks!.count) ? frameMasks![ballIndex] : nil
+                            return BallEntry(count: count, standingAfterMask: mask)
+                        }
                         context.insert(frame)
                     }
                 } else {

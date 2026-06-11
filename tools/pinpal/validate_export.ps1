@@ -66,7 +66,8 @@ function Get-ParsedDate([string]$raw) {
     return $null
 }
 
-# Frame string per docs/PINPAL_FORMAT.md: frames split by '|', balls by ','.
+# Frame string: frames split by '|', balls by ','. Each ball is a count, or
+# "count:mask" when pin identity is present (mask is ignored for scoring).
 function Get-ParsedFrames([string]$raw) {
     $parts = $raw -split '\|'
     if ($parts.Count -ne 10) { return $null }
@@ -74,7 +75,7 @@ function Get-ParsedFrames([string]$raw) {
     foreach ($p in $parts) {
         $balls = @()
         foreach ($b in ($p -split ',')) {
-            $trimmed = $b.Trim()
+            $trimmed = ($b -split ':')[0].Trim()
             $n = 0
             if (-not [int]::TryParse($trimmed, [ref]$n)) { return $null }
             if ($n -lt 0 -or $n -gt 10) { return $null }
