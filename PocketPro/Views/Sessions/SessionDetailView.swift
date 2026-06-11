@@ -7,9 +7,11 @@ import PocketProCore
 struct SessionDetailView: View {
     @Bindable var session: Session
     @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
     @Query private var allBalls: [Ball]
 
     @State private var noteFrame: Frame?
+    @State private var showingDeleteConfirm = false
 
     var body: some View {
         ScrollView {
@@ -39,15 +41,31 @@ struct SessionDetailView: View {
                             Text(type.displayName).tag(type)
                         }
                     }
+                    DatePicker("Date", selection: $session.date, displayedComponents: .date)
                     if session.needsTypeReview {
                         Button("Mark type as reviewed") {
                             session.needsTypeReview = false
                         }
                     }
+                    Divider()
+                    Button(role: .destructive) {
+                        showingDeleteConfirm = true
+                    } label: {
+                        Label("Delete Session", systemImage: "trash")
+                    }
                 } label: {
                     Image(systemName: "ellipsis.circle")
                 }
             }
+        }
+        .confirmationDialog("Delete this session?", isPresented: $showingDeleteConfirm, titleVisibility: .visible) {
+            Button("Delete session", role: .destructive) {
+                context.delete(session)
+                dismiss()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Permanently removes this session and its games.")
         }
         .sheet(item: $noteFrame) { frame in
             FrameNoteSheet(frame: frame)

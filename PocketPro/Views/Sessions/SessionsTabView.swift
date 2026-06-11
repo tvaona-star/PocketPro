@@ -11,9 +11,17 @@ struct SessionsTabView: View {
     @Query(filter: #Predicate<Ball> { $0.active }) private var arsenal: [Ball]
 
     @State private var showingNewLeague = false
+    @State private var showArchived = false
+    @State private var deleteLeagueCandidate: String?
 
     private var importReviewCount: Int {
         allSessions.filter { $0.importedFromPinPal && $0.needsTypeReview }.count
+    }
+
+    /// Lowercased names of leagues the user has archived (hidden from this page,
+    /// still counted in Stats).
+    private var archivedNames: Set<String> {
+        Set(leagueEvents.filter { $0.kind == .league && $0.isArchived }.map { $0.name.lowercased() })
     }
 
     private struct LeagueGroup: Identifiable {
@@ -30,16 +38,19 @@ struct SessionsTabView: View {
 
     /// One group per league name — from league-type sessions and created leagues.
     /// Single pass (allSessions is already date-desc, so each group stays ordered).
-    private var leagues: [LeagueGroup] {
+    /// Sorted by last entry date so the most recently bowled leagues are on top.
+    private func groupLeagues(includeArchived: Bool) -> [LeagueGroup] {
+        let archived = archivedNames
         var weeksByKey: [String: [Session]] = [:]
         var nameByKey: [String: String] = [:]
         for session in allSessions where !session.isActive && session.type == .league {
             guard let name = session.leagueName, !name.isEmpty else { continue }
             let key = name.lowercased()
+            if archived.contains(key) != includeArchived { continue }
             weeksByKey[key, default: []].append(session)
             if nameByKey[key] == nil { nameByKey[key] = name }
         }
-        for event in leagueEvents where event.kind == .league && !event.isArchived && !event.name.isEmpty {
+        for event in leagueEvents where event.kind == .league && !event.name.isEmpty && event.isArchived == includeArchived {
             let key = event.name.lowercased()
             if weeksByKey[key] == nil { weeksByKey[key] = [] }
             if nameByKey[key] == nil { nameByKey[key] = event.name }
@@ -48,6 +59,9 @@ struct SessionsTabView: View {
             .map { LeagueGroup(name: nameByKey[$0] ?? $0, weeks: weeksByKey[$0] ?? []) }
             .sorted { $0.latest > $1.latest }
     }
+
+    private var leagues: [LeagueGroup] { groupLeagues(includeArchived: false) }
+    private var archivedLeagues: [LeagueGroup] { groupLeagues(includeArchived: true) }
 
     private var otherSessions: [Session] {
         allSessions.filter { !$0.isActive && $0.type != .league }
@@ -87,6 +101,15 @@ struct SessionsTabView: View {
                                     .listRowBackground(Color.clear)
                                     .listRowSeparator(.hidden)
                                     .listRowInsets(EdgeInsets(top: 5, leading: 16, bottom: 5, trailing: 16))
+                                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                        Button(role: .destructive) {
+                                            deleteLeagueCandidate = group.name
+                                        } label: { Label("Delete", systemImage: "trash") }
+                                        Button {
+                                            setArchived(group.name, true)
+                                        } label: { Label("Archive", systemImage: "archivebox") }
+                                        .tint(Theme.warning)
+                                    }
                                 }
                             }
                         }
@@ -107,6 +130,51 @@ struct SessionsTabView: View {
                                 }
                                 .onDelete { offsets in
                                     for index in offsets { context.delete(otherSessions[index]) }
+                                }
+                            }
+                        }
+
+                        if !archivedLeagues.isEmpty {
+                            Section {
+                                Button {
+                                    withAnimation(Theme.sectionSpring) { showArchived.toggle() }
+                                } label: {
+                                    HStack {
+                                        Label("Archived leagues (\(archivedLeagues.count))", systemImage: "archivebox")
+                                            .font(.system(size: 14, weight: .medium))
+                                            .foregroundStyle(Theme.textSecondary)
+                                        Spacer()
+                                        Image(systemName: showArchived ? "chevron.down" : "chevron.right")
+                                            .font(.system(size: 12, weight: .semibold))
+                                            .foregroundStyle(Theme.textMuted)
+                                    }
+                                }
+                                .buttonStyle(.plain)
+                                .listRowBackground(Color.clear)
+                                .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+
+                                if showArchived {
+                                    ForEach(archivedLeagues) { group in
+                                        ZStack {
+                                            NavigationLink {
+                                                LeagueDetailView(leagueName: group.name)
+                                            } label: { EmptyView() }
+                                            .opacity(0)
+                                            leagueRow(group)
+                                        }
+                                        .listRowBackground(Color.clear)
+                                        .listRowSeparator(.hidden)
+                                        .listRowInsets(EdgeInsets(top: 5, leading: 16, bottom: 5, trailing: 16))
+                                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                            Button(role: .destructive) {
+                                                deleteLeagueCandidate = group.name
+                                            } label: { Label("Delete", systemImage: "trash") }
+                                            Button {
+                                                setArchived(group.name, false)
+                                            } label: { Label("Unarchive", systemImage: "arrow.uturn.up") }
+                                            .tint(Theme.accent)
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -133,6 +201,45 @@ struct SessionsTabView: View {
                 NewLeagueSheet()
                     .presentationDetents([.medium])
             }
+            .confirmationDialog(
+                "Delete \(deleteLeagueCandidate ?? "league")?",
+                isPresented: Binding(get: { deleteLeagueCandidate != nil }, set: { if !$0 { deleteLeagueCandidate = nil } }),
+                titleVisibility: .visible,
+                presenting: deleteLeagueCandidate
+            ) { name in
+                Button("Delete league & all weeks", role: .destructive) {
+                    deleteLeague(name)
+                    deleteLeagueCandidate = nil
+                }
+                Button("Cancel", role: .cancel) { deleteLeagueCandidate = nil }
+            } message: { name in
+                Text("Permanently removes \(name) and every week and game in it. To keep the data for stats but hide it here, use Archive instead.")
+            }
+        }
+    }
+
+    /// Archive/unarchive a league by name — creates a record for imported leagues
+    /// that don't have one yet so the flag has somewhere to live.
+    private func setArchived(_ name: String, _ archived: Bool) {
+        let key = name.lowercased()
+        if let event = leagueEvents.first(where: { $0.kind == .league && $0.name.lowercased() == key }) {
+            event.isArchived = archived
+        } else if archived {
+            let event = LeagueEvent()
+            event.name = name
+            event.kind = .league
+            event.isArchived = true
+            context.insert(event)
+        }
+    }
+
+    private func deleteLeague(_ name: String) {
+        let key = name.lowercased()
+        for session in allSessions where session.type == .league && (session.leagueName ?? "").lowercased() == key {
+            context.delete(session)
+        }
+        for event in leagueEvents where event.kind == .league && event.name.lowercased() == key {
+            context.delete(event)
         }
     }
 
@@ -145,7 +252,8 @@ struct SessionsTabView: View {
                 Text(group.name)
                     .font(Theme.cardTitle)
                     .foregroundStyle(Theme.textPrimary)
-                Text("\(group.weeks.count) week\(group.weeks.count == 1 ? "" : "s")")
+                Text("\(group.weeks.count) week\(group.weeks.count == 1 ? "" : "s")"
+                     + (group.weeks.first.map { " · last \($0.date.formatted(.dateTime.month(.abbreviated).day().year()))" } ?? ""))
                     .font(.system(size: 12))
                     .foregroundStyle(Theme.textSecondary)
             }
