@@ -122,7 +122,7 @@ $map = [ordered]@{
     'Notes'           = Find-Column @('notes', 'note')
 }
 $gameCols = @()
-for ($n = 1; $n -le 6; $n++) {
+for ($n = 1; $n -le 12; $n++) {
     $scoreIdx = Find-Column @("game$n", "g$n", "game${n}score")
     $framesIdx = Find-Column @("game${n}frames", "g${n}frames")
     if ($scoreIdx -ge 0) { $gameCols += ,@{ N = $n; Score = $scoreIdx; Frames = $framesIdx } }

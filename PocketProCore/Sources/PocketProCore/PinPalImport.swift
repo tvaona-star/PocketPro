@@ -76,7 +76,9 @@ public enum PinPalImport {
         let notesCol = column(["notes", "note"])
 
         var gameCols: [(score: Int, frames: Int?)] = []
-        for n in 1...6 {
+        // Up to 12 games/session — covers tournament blocks (PinPal exports can
+        // group many games under one date) without truncating.
+        for n in 1...12 {
             if let scoreIdx = column(["game\(n)", "g\(n)", "game\(n)score"]) {
                 let framesIdx = column(["game\(n)frames", "g\(n)frames"])
                 gameCols.append((scoreIdx, framesIdx))
