@@ -19,6 +19,9 @@ struct LiveSessionView: View {
     @State private var showingSessionNote = false
     @State private var noteFrame: Frame?
     @State private var endedGame: Game?
+    /// Frame being re-entered directly (tap a frame to edit it). Its existing
+    /// balls are replaced only when the first new ball is committed.
+    @State private var editingFrameNumber: Int?
 
     private var entryMode: ScoreEntryMode {
         ScoreEntryMode(rawValue: entryModeRaw) ?? .pinDeck
@@ -34,8 +37,10 @@ struct LiveSessionView: View {
                 sessionHeader
 
                 if let game {
-                    FrameStripView(game: game, onLongPressFrame: { frame in
+                    FrameStripView(game: game, editingFrameNumber: editingFrameNumber, onLongPressFrame: { frame in
                         noteFrame = frame
+                    }, onTapFrame: { frame in
+                        beginEditing(frame)
                     })
 
                     ballChip(game: game)
@@ -166,6 +171,10 @@ struct LiveSessionView: View {
     /// identity is unavailable (prior ball entered without pin data).
     private func entryContext(game: Game) -> EntryContext {
         let frames = game.sortedFrames
+        // Editing a tapped frame: re-enter it from ball 1 on a full rack.
+        if let editing = editingFrameNumber, frames.contains(where: { $0.number == editing }) {
+            return EntryContext(frameIndex: editing - 1, ballIndex: 0, rack: .full)
+        }
         for frame in frames {
             let index = frame.number - 1
             if !ScoringEngine.isFrameComplete(balls: frame.counts, frameIndex: index) {
@@ -211,7 +220,16 @@ struct LiveSessionView: View {
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(Theme.textSecondary)
                 Spacer()
-                if canUndo(game: game) {
+                if editingFrameNumber != nil {
+                    Button {
+                        editingFrameNumber = nil
+                        standingSelection = .empty
+                    } label: {
+                        Label("Cancel edit", systemImage: "xmark")
+                            .font(.system(size: 13, weight: .medium))
+                    }
+                    .foregroundStyle(Theme.warning)
+                } else if canUndo(game: game) {
                     Button {
                         undoLastBall(game: game)
                     } label: {
@@ -282,6 +300,7 @@ struct LiveSessionView: View {
         let standing = standingSelection
         let count = rack.count - standing.count
         let frame = frameForEntry(game: game, entry: entry)
+        clearForEditIfNeeded(frame)
         frame.balls.append(BallEntry(count: count, standingAfterMask: standing.mask))
         standingSelection = .empty
         afterCommit(game: game)
@@ -289,8 +308,23 @@ struct LiveSessionView: View {
 
     private func commitCountBall(game: Game, entry: EntryContext, count: Int) {
         let frame = frameForEntry(game: game, entry: entry)
+        clearForEditIfNeeded(frame)
         frame.balls.append(BallEntry(count: count, standingAfterMask: nil))
         afterCommit(game: game)
+    }
+
+    /// Tap a frame to re-enter it; its old balls are wiped only when the first
+    /// replacement ball is committed, so tapping by mistake costs nothing.
+    private func beginEditing(_ frame: Frame) {
+        guard !frame.balls.isEmpty else { return }
+        editingFrameNumber = frame.number
+        standingSelection = .empty
+    }
+
+    private func clearForEditIfNeeded(_ frame: Frame) {
+        guard editingFrameNumber == frame.number else { return }
+        frame.balls.removeAll()
+        editingFrameNumber = nil
     }
 
     private func afterCommit(game: Game) {

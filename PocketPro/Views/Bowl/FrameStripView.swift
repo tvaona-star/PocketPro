@@ -9,43 +9,49 @@ struct FrameStripView: View {
     var onLongPressFrame: ((Frame) -> Void)?
     var onTapFrame: ((Frame) -> Void)?
 
+    /// When set, this frame is highlighted as the one being edited (PRD 5.1).
+    var editingFrameNumber: Int? = nil
+
     var body: some View {
+        // Compute the score and frame list once per render (not per cell).
+        let frames = game.sortedFrames
+        let cumulative = game.liveScore.cumulative
+        let complete = game.isComplete
+        let current = currentNumber(frames: frames)
         // All 10 frames visible at once, no scroll: 1–5 on top, 6–10 below (PRD 5.1).
         VStack(spacing: 4) {
             HStack(spacing: 4) {
                 ForEach(1...5, id: \.self) { number in
-                    frameCell(number: number)
+                    frameCell(number: number, frame: frames.first { $0.number == number },
+                              cumulative: cumulative[number - 1],
+                              isCurrent: highlight(number, current: current, complete: complete))
                 }
             }
             HStack(spacing: 4) {
                 ForEach(6...10, id: \.self) { number in
-                    frameCell(number: number)
+                    frameCell(number: number, frame: frames.first { $0.number == number },
+                              cumulative: cumulative[number - 1],
+                              isCurrent: highlight(number, current: current, complete: complete))
                 }
             }
         }
     }
 
-    private var score: ScoringEngine.GameScore {
-        game.liveScore
-    }
-
-    private func frame(number: Int) -> Frame? {
-        game.sortedFrames.first { $0.number == number }
-    }
-
-    private var currentFrameNumber: Int {
-        for f in game.sortedFrames where !ScoringEngine.isFrameComplete(balls: f.counts, frameIndex: f.number - 1) {
+    private func currentNumber(frames: [Frame]) -> Int {
+        for f in frames where !ScoringEngine.isFrameComplete(balls: f.counts, frameIndex: f.number - 1) {
             return f.number
         }
-        return min(10, game.sortedFrames.count + 1)
+        return min(10, frames.count + 1)
+    }
+
+    private func highlight(_ number: Int, current: Int, complete: Bool) -> Bool {
+        if let editing = editingFrameNumber { return number == editing }
+        return highlightCurrent && !complete && number == current
     }
 
     @ViewBuilder
-    private func frameCell(number: Int) -> some View {
-        let frame = frame(number: number)
-        let isCurrent = highlightCurrent && !game.isComplete && number == currentFrameNumber
+    private func frameCell(number: Int, frame: Frame?, cumulative: Int?, isCurrent: Bool) -> some View {
         let symbols = ballSymbols(number: number, counts: frame?.counts ?? [])
-        let cumulative = score.cumulative[number - 1]
 
         VStack(spacing: 0) {
             Text("\(number)")

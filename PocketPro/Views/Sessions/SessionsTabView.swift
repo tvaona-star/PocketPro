@@ -29,27 +29,24 @@ struct SessionsTabView: View {
     }
 
     /// One group per league name — from league-type sessions and created leagues.
+    /// Single pass (allSessions is already date-desc, so each group stays ordered).
     private var leagues: [LeagueGroup] {
-        var names: [String] = []
-        var seen = Set<String>()
-        func add(_ raw: String) {
-            let key = raw.lowercased()
-            if !raw.isEmpty, !seen.contains(key) { seen.insert(key); names.append(raw) }
-        }
+        var weeksByKey: [String: [Session]] = [:]
+        var nameByKey: [String: String] = [:]
         for session in allSessions where !session.isActive && session.type == .league {
-            if let name = session.leagueName { add(name) }
+            guard let name = session.leagueName, !name.isEmpty else { continue }
+            let key = name.lowercased()
+            weeksByKey[key, default: []].append(session)
+            if nameByKey[key] == nil { nameByKey[key] = name }
         }
-        for event in leagueEvents where event.kind == .league && !event.isArchived {
-            add(event.name)
+        for event in leagueEvents where event.kind == .league && !event.isArchived && !event.name.isEmpty {
+            let key = event.name.lowercased()
+            if weeksByKey[key] == nil { weeksByKey[key] = [] }
+            if nameByKey[key] == nil { nameByKey[key] = event.name }
         }
-        return names.map { name in
-            let weeks = allSessions.filter {
-                !$0.isActive && $0.type == .league
-                    && ($0.leagueName ?? "").caseInsensitiveCompare(name) == .orderedSame
-            }
-            return LeagueGroup(name: name, weeks: weeks)
-        }
-        .sorted { $0.latest > $1.latest }
+        return weeksByKey.keys
+            .map { LeagueGroup(name: nameByKey[$0] ?? $0, weeks: weeksByKey[$0] ?? []) }
+            .sorted { $0.latest > $1.latest }
     }
 
     private var otherSessions: [Session] {

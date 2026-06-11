@@ -11,8 +11,10 @@ struct StatsTabView: View {
     @AppStorage(SettingsKeys.seasonDefinition) private var seasonRaw = SeasonDefinition.usbc.rawValue
 
     @State private var typeFilter: SessionType?
-    /// A specific league/tournament to scope stats to (nil = all of the selected type).
-    @State private var eventFilter: UUID?
+    /// Names of leagues/tournaments to scope stats to (empty = all). Multi-select,
+    /// keyed by lowercased name so it also covers imported PinPal leagues.
+    @State private var leagueFilter: Set<String> = []
+    @State private var showingLeaguePicker = false
     @State private var dateRange: StatDateRange = .thisSeason
     @State private var customFrom = Calendar.current.date(byAdding: .month, value: -1, to: Date()) ?? Date()
     @State private var customTo = Date()
@@ -56,7 +58,10 @@ struct StatsTabView: View {
             .filter { session in
                 if session.isActive { return false }
                 if let typeFilter, session.type != typeFilter { return false }
-                if let eventFilter, session.leagueEvent?.id != eventFilter { return false }
+                if !leagueFilter.isEmpty {
+                    let name = (session.leagueName ?? session.eventName ?? "").lowercased()
+                    if !leagueFilter.contains(name) { return false }
+                }
                 if let start = rangeStart, session.date < start { return false }
                 if let end = rangeEnd, session.date > end { return false }
                 return true
@@ -67,6 +72,32 @@ struct StatsTabView: View {
                 if let patternFilter, game.patternID != patternFilter { return false }
                 return true
             }
+    }
+
+    private func eventNames(for type: SessionType) -> [String] {
+        var seen = Set<String>()
+        var out: [String] = []
+        for session in allSessions where !session.isActive && session.type == type {
+            if let name = session.leagueName ?? session.eventName, !name.isEmpty,
+               seen.insert(name.lowercased()).inserted {
+                out.append(name)
+            }
+        }
+        for event in leagueEvents where event.kind.sessionType == type && !event.isArchived && !event.name.isEmpty {
+            if seen.insert(event.name.lowercased()).inserted { out.append(event.name) }
+        }
+        return out.sorted()
+    }
+
+    private var leagueNames: [String] { eventNames(for: .league) }
+    private var tournamentNames: [String] { eventNames(for: .tournament) }
+
+    private var leagueFilterLabel: String {
+        if leagueFilter.isEmpty { return "League / Event" }
+        if leagueFilter.count == 1, let key = leagueFilter.first {
+            return (leagueNames + tournamentNames).first { $0.lowercased() == key } ?? "1 selected"
+        }
+        return "\(leagueFilter.count) selected"
     }
 
     private var patterns: [Pattern] {
@@ -118,6 +149,10 @@ struct StatsTabView: View {
                 customRangeSheet
                     .presentationDetents([.medium])
             }
+            .sheet(isPresented: $showingLeaguePicker) {
+                LeagueFilterSheet(leagues: leagueNames, tournaments: tournamentNames, selection: $leagueFilter)
+                    .presentationDetents([.medium, .large])
+            }
         }
     }
 
@@ -141,33 +176,14 @@ struct StatsTabView: View {
             }
             .pickerStyle(.segmented)
 
-            if !leagueEvents.isEmpty {
+            if !leagueNames.isEmpty || !tournamentNames.isEmpty {
                 HStack(spacing: 8) {
-                    Menu {
-                        Button("All leagues & tournaments") { eventFilter = nil }
-                        let leagues = leagueEvents.filter { $0.kind == .league && !$0.isArchived }
-                        let tournaments = leagueEvents.filter { $0.kind == .tournament && !$0.isArchived }
-                        if !leagues.isEmpty {
-                            Section("Leagues") {
-                                ForEach(leagues) { event in
-                                    Button(event.name) { eventFilter = event.id }
-                                }
-                            }
-                        }
-                        if !tournaments.isEmpty {
-                            Section("Tournaments") {
-                                ForEach(tournaments) { event in
-                                    Button(event.name) { eventFilter = event.id }
-                                }
-                            }
-                        }
+                    Button {
+                        showingLeaguePicker = true
                     } label: {
-                        filterPill(
-                            icon: "trophy",
-                            label: leagueEvents.first { $0.id == eventFilter }?.name ?? "League / Event",
-                            active: eventFilter != nil
-                        )
+                        filterPill(icon: "trophy", label: leagueFilterLabel, active: !leagueFilter.isEmpty)
                     }
+                    .buttonStyle(.plain)
                     Spacer()
                 }
             }
@@ -295,6 +311,55 @@ struct StatsTabView: View {
             StatTile(label: "Open Frame %", value: display(stats.openFramePercent))
             StatTile(label: "Clean Game %", value: display(stats.cleanGamePercent))
             StatTile(label: "Average", value: display(stats.average, suffix: ""))
+        }
+    }
+}
+
+/// Multi-select league/tournament filter for the Stats tab. Selection is keyed by
+/// lowercased name so it spans created leagues and imported PinPal leagues alike.
+private struct LeagueFilterSheet: View {
+    let leagues: [String]
+    let tournaments: [String]
+    @Binding var selection: Set<String>
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if !selection.isEmpty {
+                    Button("Clear selection", role: .destructive) { selection.removeAll() }
+                }
+                if !leagues.isEmpty {
+                    Section("Leagues") {
+                        ForEach(leagues, id: \.self) { row($0) }
+                    }
+                }
+                if !tournaments.isEmpty {
+                    Section("Tournaments") {
+                        ForEach(tournaments, id: \.self) { row($0) }
+                    }
+                }
+            }
+            .navigationTitle("Leagues & Tournaments")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } }
+            }
+        }
+    }
+
+    private func row(_ name: String) -> some View {
+        Button {
+            let key = name.lowercased()
+            if selection.contains(key) { selection.remove(key) } else { selection.insert(key) }
+        } label: {
+            HStack {
+                Text(name).foregroundStyle(Theme.textPrimary)
+                Spacer()
+                if selection.contains(name.lowercased()) {
+                    Image(systemName: "checkmark").foregroundStyle(Theme.accent)
+                }
+            }
         }
     }
 }
