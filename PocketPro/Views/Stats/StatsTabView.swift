@@ -123,8 +123,6 @@ struct StatsTabView: View {
                     let stats = StatsEngine.dashboard(games: games)
                     let belowThreshold = stats.gamesCount < statThreshold
 
-                    TrendStripView(games: games, allGamesForHotStat: allGamesUnfiltered)
-
                     if conditionActive {
                         conditionBanner
                     }
@@ -160,10 +158,6 @@ struct StatsTabView: View {
                     .presentationDetents([.medium, .large])
             }
         }
-    }
-
-    private var allGamesUnfiltered: [GameRecord] {
-        allSessions.filter { !$0.isActive }.flatMap { $0.gameRecords() }
     }
 
     private var conditionActive: Bool {
