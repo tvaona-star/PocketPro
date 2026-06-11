@@ -10,6 +10,7 @@ struct ArsenalTabView: View {
 
     @State private var showingAddBall = false
     @State private var compareBall: Ball?
+    @State private var deleteCandidate: Ball?
 
     private var activeBalls: [Ball] {
         balls.filter { $0.active }
@@ -82,6 +83,20 @@ struct ArsenalTabView: View {
                 BallCompareView(initialA: ball)
                     .presentationDetents([.large])
             }
+            .confirmationDialog(
+                "Delete \(deleteCandidate?.displayName ?? "this ball")?",
+                isPresented: Binding(get: { deleteCandidate != nil }, set: { if !$0 { deleteCandidate = nil } }),
+                titleVisibility: .visible,
+                presenting: deleteCandidate
+            ) { ball in
+                Button("Delete", role: .destructive) {
+                    context.delete(ball)
+                    deleteCandidate = nil
+                }
+                Button("Cancel", role: .cancel) { deleteCandidate = nil }
+            } message: { ball in
+                Text("Permanently removes \(ball.displayName) from your arsenal. Past games keep their scores. To keep it but hide it, use Retire instead.")
+            }
         }
     }
 
@@ -112,6 +127,11 @@ struct ArsenalTabView: View {
                 Label(ball.active ? "Retire" : "Activate", systemImage: ball.active ? "archivebox" : "arrow.uturn.up")
             }
             .tint(Theme.warning)
+            Button(role: .destructive) {
+                deleteCandidate = ball
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
         }
     }
 

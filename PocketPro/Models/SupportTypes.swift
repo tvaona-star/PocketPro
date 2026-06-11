@@ -299,6 +299,7 @@ enum StatDateRange: String, CaseIterable, Identifiable {
     case thisWeek = "week"
     case thisMonth = "month"
     case thisSeason = "season"
+    case lastYear = "year"
     case allTime = "all"
     case custom
 
@@ -307,8 +308,9 @@ enum StatDateRange: String, CaseIterable, Identifiable {
     var displayName: String {
         switch self {
         case .thisWeek: return "This Week"
-        case .thisMonth: return "This Month"
+        case .thisMonth: return "Last Month"
         case .thisSeason: return "This Season"
+        case .lastYear: return "Last Year"
         case .allTime: return "All Time"
         case .custom: return "Custom"
         }

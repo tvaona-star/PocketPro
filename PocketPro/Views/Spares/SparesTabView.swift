@@ -31,6 +31,7 @@ struct SparesTabView: View {
         case .thisWeek: return Calendar.current.date(byAdding: .day, value: -7, to: now)
         case .thisMonth: return Calendar.current.date(byAdding: .month, value: -1, to: now)
         case .thisSeason: return season.seasonStart(now: now)
+        case .lastYear: return Calendar.current.date(byAdding: .year, value: -1, to: now)
         case .allTime, .custom: return nil
         }
     }

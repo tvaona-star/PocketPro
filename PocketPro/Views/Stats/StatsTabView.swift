@@ -37,6 +37,8 @@ struct StatsTabView: View {
             return calendar.date(byAdding: .month, value: -1, to: now)
         case .thisSeason:
             return season.seasonStart(now: now)
+        case .lastYear:
+            return calendar.date(byAdding: .year, value: -1, to: now)
         case .allTime:
             return nil
         case .custom:
