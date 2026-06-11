@@ -15,10 +15,12 @@ struct NewLeagueSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("League") {
+                Section {
                     TextField("Name (e.g. Tuesday Classic)", text: $name)
                     DatePicker("Start date", selection: $startDate, displayedComponents: .date)
                     Stepper("Games per week: \(gamesPerWeek)", value: $gamesPerWeek, in: 1...12)
+                } header: {
+                    Text("League")
                 } footer: {
                     Text("Then open the league and add a week each time you bowl. Every week stays grouped under this league.")
                 }

@@ -6,11 +6,10 @@ import PocketProCore
 struct FrameStripView: View {
     let game: Game
     var highlightCurrent: Bool = true
-    var onLongPressFrame: ((Frame) -> Void)?
-    var onTapFrame: ((Frame) -> Void)?
-
     /// When set, this frame is highlighted as the one being edited (PRD 5.1).
     var editingFrameNumber: Int? = nil
+    var onLongPressFrame: ((Frame) -> Void)?
+    var onTapFrame: ((Frame) -> Void)?
 
     var body: some View {
         // Compute the score and frame list once per render (not per cell).
