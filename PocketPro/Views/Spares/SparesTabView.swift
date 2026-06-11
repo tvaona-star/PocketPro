@@ -7,11 +7,15 @@ import PocketProCore
 struct SparesTabView: View {
     @Query(sort: \Session.date, order: .reverse) private var allSessions: [Session]
     @Query(filter: #Predicate<Ball> { $0.active }) private var arsenal: [Ball]
+    @Query private var leagueEvents: [LeagueEvent]
     @AppStorage(SettingsKeys.seasonDefinition) private var seasonRaw = SeasonDefinition.usbc.rawValue
 
     @State private var typeFilter: SessionType?
+    @State private var leagueFilter: Set<String> = []
+    @State private var showingLeaguePicker = false
     @State private var dateRange: StatDateRange = .thisSeason
     @State private var ballFilter: UUID?
+    @State private var patternFilter: UUID?
     @State private var bucketFilter: SpareBucket?
     @State private var heatmapPin: Int?
     @State private var viewMode: ViewMode = .list
@@ -36,19 +40,29 @@ struct SparesTabView: View {
         }
     }
 
+    private func sessionMatchesFilters(_ session: Session) -> Bool {
+        if session.isActive { return false }
+        if let typeFilter, session.type != typeFilter { return false }
+        if !leagueFilter.isEmpty {
+            let name = (session.leagueName ?? session.eventName ?? "").lowercased()
+            if !leagueFilter.contains(name) { return false }
+        }
+        return true
+    }
+
+    private func gameMatchesFilters(_ game: GameRecord) -> Bool {
+        if let ballFilter, !game.ballIDs.contains(ballFilter) { return false }
+        if let patternFilter, game.patternID != patternFilter { return false }
+        return true
+    }
+
     private var games: [GameRecord] {
         allSessions
             .filter { session in
-                if session.isActive { return false }
-                if let typeFilter, session.type != typeFilter { return false }
-                if let start = rangeStart, session.date < start { return false }
-                return true
+                sessionMatchesFilters(session) && (rangeStart.map { session.date >= $0 } ?? true)
             }
             .flatMap { $0.gameRecords() }
-            .filter { game in
-                if let ballFilter, !game.ballIDs.contains(ballFilter) { return false }
-                return true
-            }
+            .filter { gameMatchesFilters($0) }
     }
 
     /// Prior-period games for the corner spotlight trend.
@@ -57,16 +71,49 @@ struct SparesTabView: View {
         let span = Date().timeIntervalSince(start)
         let priorStart = start.addingTimeInterval(-span)
         return allSessions
-            .filter { session in
-                if session.isActive { return false }
-                if let typeFilter, session.type != typeFilter { return false }
-                return session.date >= priorStart && session.date < start
-            }
+            .filter { sessionMatchesFilters($0) && $0.date >= priorStart && $0.date < start }
             .flatMap { $0.gameRecords() }
+            .filter { gameMatchesFilters($0) }
     }
 
     private var hasAnyLeaves: Bool {
         games.contains { !$0.leaves.isEmpty }
+    }
+
+    private func eventNames(for type: SessionType) -> [String] {
+        var seen = Set<String>()
+        var out: [String] = []
+        for s in allSessions where !s.isActive && s.type == type {
+            if let n = s.leagueName ?? s.eventName, !n.isEmpty, seen.insert(n.lowercased()).inserted {
+                out.append(n)
+            }
+        }
+        for e in leagueEvents where e.kind.sessionType == type && !e.isArchived && !e.name.isEmpty {
+            if seen.insert(e.name.lowercased()).inserted { out.append(e.name) }
+        }
+        return out.sorted()
+    }
+
+    private var leagueNames: [String] { eventNames(for: .league) }
+    private var tournamentNames: [String] { eventNames(for: .tournament) }
+    private var archivedNames: Set<String> {
+        Set(leagueEvents.filter { $0.kind == .league && $0.isArchived }.map { $0.name.lowercased() })
+    }
+    private var activeLeagueNames: [String] { leagueNames.filter { !archivedNames.contains($0.lowercased()) } }
+    private var archivedLeagueNames: [String] { leagueNames.filter { archivedNames.contains($0.lowercased()) } }
+
+    private var leagueFilterLabel: String {
+        if leagueFilter.isEmpty { return "League / Event" }
+        if leagueFilter.count == 1, let key = leagueFilter.first {
+            return (leagueNames + tournamentNames).first { $0.lowercased() == key } ?? "1 selected"
+        }
+        return "\(leagueFilter.count) selected"
+    }
+
+    private var patterns: [Pattern] {
+        var byID: [UUID: Pattern] = [:]
+        for session in allSessions { if let pattern = session.pattern { byID[pattern.id] = pattern } }
+        return Array(byID.values).sorted { $0.name < $1.name }
     }
 
     var body: some View {
@@ -115,6 +162,10 @@ struct SparesTabView: View {
                     SettingsToolbarLink()
                 }
             }
+            .sheet(isPresented: $showingLeaguePicker) {
+                LeagueFilterSheet(leagues: activeLeagueNames, tournaments: tournamentNames, archivedLeagues: archivedLeagueNames, selection: $leagueFilter)
+                    .presentationDetents([.medium, .large])
+            }
         }
     }
 
@@ -130,26 +181,47 @@ struct SparesTabView: View {
             }
             .pickerStyle(.segmented)
 
-            HStack(spacing: 8) {
-                Menu {
-                    ForEach([StatDateRange.thisWeek, .thisMonth, .thisSeason, .allTime]) { range in
-                        Button(range.displayName) { dateRange = range }
+            // Same filter set as the Stats tab: league/event, date, ball, pattern.
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    if !leagueNames.isEmpty || !tournamentNames.isEmpty {
+                        Button { showingLeaguePicker = true } label: {
+                            menuPill(leagueFilterLabel, active: !leagueFilter.isEmpty)
+                        }
+                        .buttonStyle(.plain)
                     }
-                } label: {
-                    menuPill(dateRange.displayName, active: dateRange != .allTime)
-                }
-                Menu {
-                    Button("Any ball") { ballFilter = nil }
-                    ForEach(arsenal) { ball in
-                        Button(ball.displayName) { ballFilter = ball.id }
+                    Menu {
+                        ForEach([StatDateRange.thisWeek, .thisMonth, .thisSeason, .lastYear, .allTime]) { range in
+                            Button(range.displayName) { dateRange = range }
+                        }
+                    } label: {
+                        menuPill(dateRange.displayName, active: dateRange != .allTime)
                     }
-                } label: {
-                    menuPill(
-                        ballFilter.flatMap { id in arsenal.first { $0.id == id }?.displayName } ?? "Any ball",
-                        active: ballFilter != nil
-                    )
+                    Menu {
+                        Button("Any ball") { ballFilter = nil }
+                        ForEach(arsenal) { ball in
+                            Button(ball.displayName) { ballFilter = ball.id }
+                        }
+                    } label: {
+                        menuPill(
+                            ballFilter.flatMap { id in arsenal.first { $0.id == id }?.displayName } ?? "Any ball",
+                            active: ballFilter != nil
+                        )
+                    }
+                    if !patterns.isEmpty {
+                        Menu {
+                            Button("Any pattern") { patternFilter = nil }
+                            ForEach(patterns) { pattern in
+                                Button(pattern.name.isEmpty ? pattern.summary : pattern.name) { patternFilter = pattern.id }
+                            }
+                        } label: {
+                            menuPill(
+                                patternFilter.flatMap { id in patterns.first { $0.id == id }.map { $0.name.isEmpty ? $0.summary : $0.name } } ?? "Pattern",
+                                active: patternFilter != nil
+                            )
+                        }
+                    }
                 }
-                Spacer()
             }
         }
     }

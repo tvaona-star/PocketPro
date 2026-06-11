@@ -92,6 +92,12 @@ struct StatsTabView: View {
     private var leagueNames: [String] { eventNames(for: .league) }
     private var tournamentNames: [String] { eventNames(for: .tournament) }
 
+    private var archivedNames: Set<String> {
+        Set(leagueEvents.filter { $0.kind == .league && $0.isArchived }.map { $0.name.lowercased() })
+    }
+    private var activeLeagueNames: [String] { leagueNames.filter { !archivedNames.contains($0.lowercased()) } }
+    private var archivedLeagueNames: [String] { leagueNames.filter { archivedNames.contains($0.lowercased()) } }
+
     private var leagueFilterLabel: String {
         if leagueFilter.isEmpty { return "League / Event" }
         if leagueFilter.count == 1, let key = leagueFilter.first {
@@ -150,7 +156,7 @@ struct StatsTabView: View {
                     .presentationDetents([.medium])
             }
             .sheet(isPresented: $showingLeaguePicker) {
-                LeagueFilterSheet(leagues: leagueNames, tournaments: tournamentNames, selection: $leagueFilter)
+                LeagueFilterSheet(leagues: activeLeagueNames, tournaments: tournamentNames, archivedLeagues: archivedLeagueNames, selection: $leagueFilter)
                     .presentationDetents([.medium, .large])
             }
         }
@@ -315,13 +321,16 @@ struct StatsTabView: View {
     }
 }
 
-/// Multi-select league/tournament filter for the Stats tab. Selection is keyed by
-/// lowercased name so it spans created leagues and imported PinPal leagues alike.
-private struct LeagueFilterSheet: View {
+/// Multi-select league/tournament filter shared by the Stats and Spares tabs.
+/// Selection is keyed by lowercased name so it spans created and imported leagues.
+/// Archived leagues appear in a collapsible section (they're still in the stats).
+struct LeagueFilterSheet: View {
     let leagues: [String]
     let tournaments: [String]
+    var archivedLeagues: [String] = []
     @Binding var selection: Set<String>
     @Environment(\.dismiss) private var dismiss
+    @State private var showArchived = false
 
     var body: some View {
         NavigationStack {
@@ -337,6 +346,25 @@ private struct LeagueFilterSheet: View {
                 if !tournaments.isEmpty {
                     Section("Tournaments") {
                         ForEach(tournaments, id: \.self) { row($0) }
+                    }
+                }
+                if !archivedLeagues.isEmpty {
+                    Section {
+                        Button {
+                            withAnimation(Theme.sectionSpring) { showArchived.toggle() }
+                        } label: {
+                            HStack {
+                                Label("Archived (\(archivedLeagues.count))", systemImage: "archivebox")
+                                    .foregroundStyle(Theme.textSecondary)
+                                Spacer()
+                                Image(systemName: showArchived ? "chevron.down" : "chevron.right")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundStyle(Theme.textMuted)
+                            }
+                        }
+                        if showArchived {
+                            ForEach(archivedLeagues, id: \.self) { row($0) }
+                        }
                     }
                 }
             }

@@ -135,31 +135,36 @@ struct TrendSparkline: View {
 struct SpareBreakdownPanel: View {
     let games: [GameRecord]
     @State private var isExpanded = true
-    @State private var singlesExpanded = false
-    @State private var otherExpanded = false
 
-    /// Breakdown rows in PRD order; "Splits" row added per DECISIONS.md D10.
-    private let categories: [LeaveCategory] = [
-        .singlePin, .cornerPin, .sleeper, .cluster, .washout,
-        .babySplit, .split, .bigSplit, .bucket, .bigFour, .sevenTen, .other,
-    ]
+    private struct Bucket: Identifiable {
+        let label: String
+        let predicate: (LeaveRecord) -> Bool
+        var id: String { label }
+    }
+
+    /// Five buckets only (PRD 5.3, user-tuned). Each leave falls in exactly one:
+    /// a single non-corner pin, a corner pin (7/10 alone), the 7-10, a true split
+    /// (other than 7-10), or a multi-pin non-split cluster.
+    private var buckets: [Bucket] {
+        [
+            Bucket(label: "Single Pins") { $0.pins.count == 1 && !$0.categories.contains(.cornerPin) },
+            Bucket(label: "Corner Pins") { $0.pins.count == 1 && $0.categories.contains(.cornerPin) },
+            Bucket(label: "7-10") { $0.categories.contains(.sevenTen) },
+            Bucket(label: "Splits") { $0.categories.contains(.split) && !$0.categories.contains(.sevenTen) },
+            Bucket(label: "Multi Pin") { $0.pins.count >= 2 && !$0.categories.contains(.split) },
+        ]
+    }
 
     var body: some View {
         SectionCard(title: "Spare Breakdown", isExpanded: $isExpanded) {
             Text(previewText)
         } content: {
             VStack(spacing: 6) {
-                ForEach(categories) { category in
-                    let aggregate = StatsEngine.categoryAggregate(games: games, category: category)
-                    if aggregate.timesLeft > 0 {
-                        breakdownRow(label: category.pluralDisplayName, aggregate: aggregate)
-                        if category == .singlePin {
-                            singlePinSubRows
-                        }
-                        if category == .other {
-                            otherSubRows
-                        }
-                    }
+                ForEach(buckets) { bucket in
+                    breakdownRow(
+                        label: bucket.label,
+                        aggregate: StatsEngine.aggregate(games: games, matching: bucket.predicate)
+                    )
                 }
             }
         }
@@ -170,22 +175,11 @@ struct SpareBreakdownPanel: View {
         return "\(all.timesLeft) leaves · \(Notation.percent(all.conversionPercent)) converted"
     }
 
-    private func breakdownRow(label: String, aggregate: LeaveAggregate, indent: Bool = false) -> some View {
+    private func breakdownRow(label: String, aggregate: LeaveAggregate) -> some View {
         HStack {
-            if indent {
-                Rectangle()
-                    .fill(Color.clear)
-                    .frame(width: 16)
-            }
             Text(label)
-                .font(.system(size: indent ? 13 : 14, weight: indent ? .regular : .medium))
-                .foregroundStyle(indent ? Theme.textSecondary : Theme.textPrimary)
-            if label == "Single Pins" {
-                expandToggle($singlesExpanded)
-            }
-            if label == "Other" {
-                expandToggle($otherExpanded)
-            }
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(Theme.textPrimary)
             Spacer()
             Text("\(aggregate.timesConverted)/\(aggregate.timesLeft)")
                 .font(.system(size: 13).monospacedDigit())
@@ -196,45 +190,6 @@ struct SpareBreakdownPanel: View {
                 .frame(width: 64, alignment: .trailing)
         }
         .padding(.vertical, 3)
-    }
-
-    private func expandToggle(_ binding: Binding<Bool>) -> some View {
-        Button {
-            withAnimation(Theme.sectionSpring) {
-                binding.wrappedValue.toggle()
-            }
-        } label: {
-            Image(systemName: "chevron.down")
-                .font(.system(size: 10, weight: .bold))
-                .foregroundStyle(Theme.textMuted)
-                .rotationEffect(.degrees(binding.wrappedValue ? 180 : 0))
-        }
-        .buttonStyle(.plain)
-    }
-
-    /// Per-pin sub-rows (PRD: 10 sub-rows under Single Pins).
-    @ViewBuilder
-    private var singlePinSubRows: some View {
-        if singlesExpanded {
-            ForEach(1...10, id: \.self) { pin in
-                let aggregate = StatsEngine.pinAggregate(games: games, pins: PinSet(pins: [pin]))
-                if aggregate.timesLeft > 0 {
-                    breakdownRow(label: "\(pin) Pin", aggregate: aggregate, indent: true)
-                }
-            }
-        }
-    }
-
-    /// Every uncategorized combination — nothing is ever discarded (PRD 5.3).
-    @ViewBuilder
-    private var otherSubRows: some View {
-        if otherExpanded {
-            let entries = StatsEngine.leaveFrequency(games: games)
-                .filter { $0.classification.primary == .other }
-            ForEach(Array(entries.enumerated()), id: \.offset) { _, entry in
-                breakdownRow(label: entry.pins.displayString, aggregate: entry.aggregate, indent: true)
-            }
-        }
     }
 }
 

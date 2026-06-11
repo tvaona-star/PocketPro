@@ -12,6 +12,7 @@ struct SessionDetailView: View {
 
     @State private var noteFrame: Frame?
     @State private var showingDeleteConfirm = false
+    @State private var showingEdit = false
 
     var body: some View {
         ScrollView {
@@ -36,12 +37,11 @@ struct SessionDetailView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
-                    Picker("Session Type", selection: typeBinding) {
-                        ForEach(SessionType.allCases) { type in
-                            Text(type.displayName).tag(type)
-                        }
+                    Button {
+                        showingEdit = true
+                    } label: {
+                        Label("Edit session", systemImage: "pencil")
                     }
-                    DatePicker("Date", selection: $session.date, displayedComponents: .date)
                     if session.needsTypeReview {
                         Button("Mark type as reviewed") {
                             session.needsTypeReview = false
@@ -58,6 +58,10 @@ struct SessionDetailView: View {
                 }
             }
         }
+        .sheet(isPresented: $showingEdit) {
+            SessionEditSheet(session: session)
+                .presentationDetents([.medium, .large])
+        }
         .confirmationDialog("Delete this session?", isPresented: $showingDeleteConfirm, titleVisibility: .visible) {
             Button("Delete session", role: .destructive) {
                 context.delete(session)
@@ -71,16 +75,6 @@ struct SessionDetailView: View {
             FrameNoteSheet(frame: frame)
                 .presentationDetents([.medium, .large])
         }
-    }
-
-    private var typeBinding: Binding<SessionType> {
-        Binding(
-            get: { session.type },
-            set: { newValue in
-                session.type = newValue
-                session.needsTypeReview = false
-            }
-        )
     }
 
     private var header: some View {
@@ -345,5 +339,107 @@ struct SessionDetailView: View {
                 .foregroundStyle(Theme.textSecondary)
         }
         .card()
+    }
+}
+
+/// Edit a session's type, league/tournament name, and date (PRD 5.2).
+struct SessionEditSheet: View {
+    @Bindable var session: Session
+    @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
+    @Query private var leagueEvents: [LeagueEvent]
+    @Query(sort: \Session.date, order: .reverse) private var allSessions: [Session]
+
+    @State private var type: SessionType = .league
+    @State private var name = ""
+    @State private var date = Date()
+
+    private var nameSuggestions: [String] {
+        guard type == .league || type == .tournament else { return [] }
+        var seen = Set<String>()
+        var out: [String] = []
+        for s in allSessions where s.type == type {
+            if let n = s.leagueName ?? s.eventName, !n.isEmpty, seen.insert(n.lowercased()).inserted { out.append(n) }
+        }
+        for e in leagueEvents where e.kind.sessionType == type && !e.name.isEmpty {
+            if seen.insert(e.name.lowercased()).inserted { out.append(e.name) }
+        }
+        return out.sorted()
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Picker("Type", selection: $type) {
+                        ForEach(SessionType.allCases) { Text($0.displayName).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    DatePicker("Date", selection: $date, displayedComponents: .date)
+                }
+                if type == .league || type == .tournament {
+                    Section(type == .league ? "League" : "Tournament") {
+                        TextField("Name", text: $name)
+                        ForEach(nameSuggestions, id: \.self) { suggestion in
+                            Button {
+                                name = suggestion
+                            } label: {
+                                HStack {
+                                    Text(suggestion).foregroundStyle(Theme.textPrimary)
+                                    Spacer()
+                                    if name.caseInsensitiveCompare(suggestion) == .orderedSame {
+                                        Image(systemName: "checkmark").foregroundStyle(Theme.accent)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Edit Session")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .topBarTrailing) { Button("Save") { save() } }
+            }
+            .onAppear {
+                type = session.type
+                name = session.leagueName ?? session.eventName ?? ""
+                date = session.date
+            }
+        }
+    }
+
+    private func save() {
+        session.type = type
+        session.date = date
+        session.needsTypeReview = false
+        let trimmed = name.trimmingCharacters(in: .whitespaces)
+        switch type {
+        case .league:
+            session.leagueName = trimmed.isEmpty ? nil : trimmed
+            session.eventName = nil
+            session.leagueEvent = trimmed.isEmpty ? nil : findOrCreateEvent(trimmed, kind: .league)
+        case .tournament:
+            session.eventName = trimmed.isEmpty ? nil : trimmed
+            session.leagueName = trimmed.isEmpty ? nil : trimmed
+            session.leagueEvent = trimmed.isEmpty ? nil : findOrCreateEvent(trimmed, kind: .tournament)
+        case .practice:
+            session.leagueName = nil
+            session.eventName = nil
+            session.leagueEvent = nil
+        }
+        dismiss()
+    }
+
+    private func findOrCreateEvent(_ name: String, kind: LeagueEventKind) -> LeagueEvent {
+        if let existing = leagueEvents.first(where: { $0.kind == kind && $0.name.caseInsensitiveCompare(name) == .orderedSame }) {
+            return existing
+        }
+        let event = LeagueEvent()
+        event.name = name
+        event.kind = kind
+        context.insert(event)
+        return event
     }
 }
