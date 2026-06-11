@@ -153,6 +153,10 @@ struct BallPersonalFieldsForm: View {
     @Environment(BallDatabaseService.self) private var ballDB
 
     @State private var weight: Int = 15
+    @State private var rgText = ""
+    @State private var diffText = ""
+    @State private var intDiffText = ""
+    @State private var specIsFallback = false
     @State private var purchaseDate = Date()
     @State private var hasPurchaseDate = false
     @State private var thumbType: ThumbType = .noThumb
@@ -165,23 +169,21 @@ struct BallPersonalFieldsForm: View {
 
     var body: some View {
         Form {
-            Section("Manufacturer Specs (read-only)") {
+            Section {
                 LabeledContent("Ball", value: record.displayName)
                 LabeledContent("Coverstock", value: record.coverstockName ?? record.coverstockType.displayName)
                 LabeledContent("Core", value: record.coreName ?? "—")
-                if let (spec, isFallback) = record.spec(atWeight: weight) {
-                    LabeledContent("RG", value: String(format: "%.2f", spec.rg))
-                    LabeledContent("Differential", value: String(format: "%.3f", spec.diff))
-                    if let intDiff = spec.intDiff {
-                        LabeledContent("Int. Diff", value: String(format: "%.3f", intDiff))
-                    }
-                    if isFallback {
-                        Text("Specs shown at 15 lb — \(weight) lb specs not yet in the database.")
-                            .font(.system(size: 12))
-                            .foregroundStyle(Theme.warning)
-                    }
-                }
                 LabeledContent("Symmetry", value: record.asymmetric ? "Asymmetric" : "Symmetric")
+                specField("RG", text: $rgText)
+                specField("Differential", text: $diffText)
+                if record.asymmetric {
+                    specField("Int. Diff", text: $intDiffText)
+                }
+                if specIsFallback {
+                    Text("No \(weight) lb specs in the database — showing 15 lb. Edit to match your ball.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.warning)
+                }
                 if let finish = record.factoryFinish {
                     LabeledContent("Factory Finish", value: finish)
                 }
@@ -189,6 +191,10 @@ struct BallPersonalFieldsForm: View {
                 if !siblings.isEmpty {
                     LabeledContent("Shared core", value: siblings.map { $0.displayName }.joined(separator: ", "))
                 }
+            } header: {
+                Text("Specs")
+            } footer: {
+                Text("Pre-filled from the database — edit RG / differential to match your ball or pro-shop sheet.")
             }
 
             Section("My Ball") {
@@ -217,7 +223,36 @@ struct BallPersonalFieldsForm: View {
         }
         .onAppear {
             weight = shellToComplete?.weight ?? defaultWeight
+            loadSpec()
         }
+        .onChange(of: weight) { _, _ in loadSpec() }
+    }
+
+    private func specField(_ label: String, text: Binding<String>) -> some View {
+        HStack {
+            Text(label)
+            Spacer()
+            TextField("—", text: text)
+                .keyboardType(.decimalPad)
+                .multilineTextAlignment(.trailing)
+                .frame(width: 90)
+        }
+    }
+
+    /// Pre-fill the editable spec fields from the database at the chosen weight.
+    private func loadSpec() {
+        if let (spec, isFallback) = record.spec(atWeight: weight) {
+            rgText = Self.trim(spec.rg)
+            diffText = Self.trim(spec.diff)
+            intDiffText = spec.intDiff.map(Self.trim) ?? ""
+            specIsFallback = isFallback
+        } else {
+            specIsFallback = false
+        }
+    }
+
+    private static func trim(_ v: Double) -> String {
+        String(format: "%g", v)
     }
 
     @ViewBuilder
@@ -255,6 +290,10 @@ struct BallPersonalFieldsForm: View {
     private func save() {
         let ball = shellToComplete ?? Ball()
         ArsenalActions.apply(record: record, to: ball, weight: weight)
+        // Persist any edits to the specs — the bowler's number wins over the DB default.
+        if let rg = Double(rgText) { ball.rg = rg }
+        if let diff = Double(diffText) { ball.diff = diff }
+        ball.intDiff = record.asymmetric ? Double(intDiffText) : nil
         ball.purchaseDate = hasPurchaseDate ? purchaseDate : nil
         ball.thumbType = thumbType
         ball.thumbSlugBrand = thumbType == .slug && !slugBrand.isEmpty ? slugBrand : nil
