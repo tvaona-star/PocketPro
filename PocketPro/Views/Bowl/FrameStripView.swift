@@ -10,9 +10,15 @@ struct FrameStripView: View {
     var onTapFrame: ((Frame) -> Void)?
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
+        // All 10 frames visible at once, no scroll: 1–5 on top, 6–10 below (PRD 5.1).
+        VStack(spacing: 4) {
             HStack(spacing: 4) {
-                ForEach(1...10, id: \.self) { number in
+                ForEach(1...5, id: \.self) { number in
+                    frameCell(number: number)
+                }
+            }
+            HStack(spacing: 4) {
+                ForEach(6...10, id: \.self) { number in
                     frameCell(number: number)
                 }
             }
@@ -52,7 +58,7 @@ struct FrameStripView: View {
                     Text(symbol)
                         .font(.system(size: 13, weight: .bold).monospacedDigit())
                         .foregroundStyle(Theme.textPrimary)
-                        .frame(width: 16, height: 18)
+                        .frame(width: 15, height: 18)
                         .background(Theme.bgElevated)
                 }
             }
@@ -62,8 +68,9 @@ struct FrameStripView: View {
                 .foregroundStyle(Theme.textPrimary)
                 .frame(height: 22)
         }
-        .padding(.horizontal, 5)
+        .padding(.horizontal, 4)
         .padding(.vertical, 4)
+        .frame(maxWidth: .infinity)
         .background(Theme.bgCard)
         .overlay(
             RoundedRectangle(cornerRadius: 8, style: .continuous)

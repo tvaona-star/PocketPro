@@ -109,7 +109,10 @@ struct SessionsTabView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 ForEach(filters.chips(arsenal: arsenal), id: \.id) { chip in
-                    FilterChip(label: chip.label, isActive: true, onTap: {}, onDismiss: {
+                    // Tapping anywhere on an active chip removes it — not only the × (PRD 5.2).
+                    FilterChip(label: chip.label, isActive: true, onTap: {
+                        filters.remove(chip.id)
+                    }, onDismiss: {
                         filters.remove(chip.id)
                     })
                 }
@@ -224,6 +227,16 @@ struct SessionFilterSheet: View {
         return Array(byID.values).sorted { $0.name < $1.name }
     }
 
+    private func applyDates() {
+        if useDateRange {
+            filters.dateFrom = Calendar.current.startOfDay(for: from)
+            filters.dateTo = Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: to))
+        } else {
+            filters.dateFrom = nil
+            filters.dateTo = nil
+        }
+    }
+
     var body: some View {
         NavigationStack {
             Form {
@@ -275,20 +288,16 @@ struct SessionFilterSheet: View {
             }
             .navigationTitle("Filters")
             .navigationBarTitleDisplayMode(.inline)
+            // Every filter applies the instant it's selected — pickers bind to `filters`
+            // directly; the date range mirrors that via onChange. "Done" only dismisses.
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Apply") {
-                        if useDateRange {
-                            filters.dateFrom = Calendar.current.startOfDay(for: from)
-                            filters.dateTo = Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: to))
-                        } else {
-                            filters.dateFrom = nil
-                            filters.dateTo = nil
-                        }
-                        dismiss()
-                    }
+                    Button("Done") { dismiss() }
                 }
             }
+            .onChange(of: useDateRange) { _, _ in applyDates() }
+            .onChange(of: from) { _, _ in applyDates() }
+            .onChange(of: to) { _, _ in applyDates() }
             .onAppear {
                 useDateRange = filters.dateFrom != nil || filters.dateTo != nil
             }

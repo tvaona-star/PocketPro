@@ -3,7 +3,7 @@ import SwiftData
 import PocketProCore
 
 /// Spares tab (PRD 5.5): leave frequency, conversion tracking, corner-pin spotlight,
-/// heatmap, and miss log. All data flows from frame-level pin entry — no duplicate entry.
+/// and heatmap. All data flows from frame-level pin entry — no duplicate entry.
 struct SparesTabView: View {
     @Query(sort: \Session.date, order: .reverse) private var allSessions: [Session]
     @Query(filter: #Predicate<Ball> { $0.active }) private var arsenal: [Ball]
@@ -19,7 +19,6 @@ struct SparesTabView: View {
     enum ViewMode: String, CaseIterable {
         case list = "List"
         case heatmap = "Heatmap"
-        case missLog = "Miss Log"
     }
 
     private var season: SeasonDefinition {
@@ -103,8 +102,6 @@ struct SparesTabView: View {
                                     .foregroundStyle(Theme.textMuted)
                                 LeaveFrequencyList(games: games, categoryFilter: nil, pinFilter: pin)
                             }
-                        case .missLog:
-                            MissLogView(sessions: allSessions, typeFilter: typeFilter, rangeStart: rangeStart, ballFilter: ballFilter)
                         }
                     }
                 }

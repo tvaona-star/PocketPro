@@ -161,15 +161,15 @@ struct LayoutEditorView: View {
                 if system == .dualAngle {
                     Section("Dual Angle") {
                         measureField("Drilling angle (°)", value: $drillingAngle)
-                        measureField("Pin to PAP (in)", value: $pinToPAP)
+                        measureField("Pin to PAP (in)", value: $pinToPAP, fraction: true)
                         measureField("VAL angle (°)", value: $valAngle)
                     }
                 } else {
                     Section("VLS") {
-                        measureField("Pin to PAP (in)", value: $pinToPAP)
-                        measureField("CG to PAP (in)", value: $cgToPAP)
-                        measureField("Pin buffer (in)", value: $pinBuffer)
-                        measureField("MB / PSA distance (in, asym only)", value: $mbPsaDistance)
+                        measureField("Pin to PAP (in)", value: $pinToPAP, fraction: true)
+                        measureField("CG to PAP (in)", value: $cgToPAP, fraction: true)
+                        measureField("Pin buffer (in)", value: $pinBuffer, fraction: true)
+                        measureField("MB / PSA distance (in, asym only)", value: $mbPsaDistance, fraction: true)
                     }
                 }
 
@@ -187,9 +187,9 @@ struct LayoutEditorView: View {
                             }
                         }
                         .pickerStyle(.segmented)
-                        measureField("Middle finger span (in)", value: $middleSpan)
-                        measureField("Ring finger span (in)", value: $ringSpan)
-                        measureField("Bridge width (in)", value: $bridgeWidth)
+                        measureField("Middle finger span (in)", value: $middleSpan, fraction: true)
+                        measureField("Ring finger span (in)", value: $ringSpan, fraction: true)
+                        measureField("Bridge width (in)", value: $bridgeWidth, fraction: true)
                         TextField("Middle hole size (e.g. 31/32\")", text: $middleHoleSize)
                         TextField("Ring hole size (e.g. 31/32\")", text: $ringHoleSize)
                         TextField("Middle pitch (e.g. 1/8\" left, 3/8\" up)", text: $middlePitch)
@@ -223,11 +223,12 @@ struct LayoutEditorView: View {
         }
     }
 
-    private func measureField(_ label: String, value: Binding<Double?>) -> some View {
+    /// `fraction: true` for inches fields (accepts 4 1/2 / 4½); degrees stay plain decimals.
+    private func measureField(_ label: String, value: Binding<Double?>, fraction: Bool = false) -> some View {
         HStack {
             Text(label)
             Spacer()
-            OptionalNumberField(placeholder: "—", value: value)
+            OptionalNumberField(placeholder: "—", value: value, allowsFractions: fraction)
                 .frame(width: 90)
         }
     }

@@ -248,15 +248,11 @@ struct StrikeClustersPanel: View {
 
     var body: some View {
         SectionCard(title: "Strike Clusters", isExpanded: $isExpanded) {
-            Text("Doubles \(Notation.percent(stats.doublesPercent)) · Max streak \(stats.maxStreakInGame)")
+            Text("Most in a row \(stats.maxStreakInGame) · 1st ball \(stats.firstBallAverage.map { Notation.oneDecimal($0) } ?? "--")")
         } content: {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 10) {
-                    miniTile("Doubles %", Notation.percent(stats.doublesPercent))
-                    miniTile("Turkey+ %", Notation.percent(stats.turkeyPlusPercent))
-                }
-                HStack(spacing: 10) {
-                    miniTile("Max Streak", "\(stats.maxStreakInGame)")
+                    miniTile("Most in a Row", "\(stats.maxStreakInGame)")
                     miniTile("1st Ball Avg", stats.firstBallAverage.map { Notation.oneDecimal($0) } ?? "--")
                 }
 

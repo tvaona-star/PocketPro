@@ -356,35 +356,41 @@ struct OptionalNumberField: View {
     let placeholder: String
     @Binding var value: Double?
     var keyboard: UIKeyboardType = .decimalPad
+    /// When true, accepts bowler fractions (`4 1/2`, `4½`) and displays them as
+    /// fractions. Use for inches measurements; leave off for degrees/plain numbers.
+    var allowsFractions: Bool = false
 
     @State private var text = ""
 
     var body: some View {
         TextField(placeholder, text: $text)
-            .keyboardType(keyboard)
+            // numbersAndPunctuation exposes "/" and space needed to type fractions.
+            .keyboardType(allowsFractions ? .numbersAndPunctuation : keyboard)
             .multilineTextAlignment(.trailing)
             .onAppear {
-                text = value.map(Self.format) ?? ""
+                text = value.map(format) ?? ""
             }
             .onChange(of: text) { _, newText in
-                value = Self.parse(newText)
+                value = parse(newText)
             }
             .onChange(of: value) { _, newValue in
                 // Refresh on external resets (form repopulation) without
                 // clobbering in-progress typing ("4." parses equal to 4).
-                if newValue != Self.parse(text) {
-                    text = newValue.map(Self.format) ?? ""
+                if newValue != parse(text) {
+                    text = newValue.map(format) ?? ""
                 }
             }
     }
 
-    private static func parse(_ raw: String) -> Double? {
+    private func parse(_ raw: String) -> Double? {
+        if allowsFractions { return Notation.parseInches(raw) }
         let normalized = raw.replacingOccurrences(of: ",", with: ".").trimmingCharacters(in: .whitespaces)
         return Double(normalized)
     }
 
-    private static func format(_ v: Double) -> String {
-        v == v.rounded() ? String(Int(v)) : String(v)
+    private func format(_ v: Double) -> String {
+        if allowsFractions { return Notation.editableInches(v) }
+        return v == v.rounded() ? String(Int(v)) : String(v)
     }
 }
 
