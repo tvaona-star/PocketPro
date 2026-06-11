@@ -31,6 +31,26 @@ public enum PinPalImport {
         public let games: [ImportedGame]
         /// Stable content hash of the source row — re-import safety (PRD 13.4).
         public let sourceHash: String
+
+        public init(
+            date: Date,
+            locationName: String?,
+            leagueName: String?,
+            patternName: String?,
+            ballName: String?,
+            notes: String?,
+            games: [ImportedGame],
+            sourceHash: String
+        ) {
+            self.date = date
+            self.locationName = locationName
+            self.leagueName = leagueName
+            self.patternName = patternName
+            self.ballName = ballName
+            self.notes = notes
+            self.games = games
+            self.sourceHash = sourceHash
+        }
     }
 
     public struct Preview: Equatable, Sendable {

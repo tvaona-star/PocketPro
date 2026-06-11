@@ -46,13 +46,26 @@ final class PinPalImportService {
         do {
             let accessing = url.startAccessingSecurityScopedResource()
             defer { if accessing { url.stopAccessingSecurityScopedResource() } }
-            let csv = try String(contentsOf: url, encoding: .utf8)
-            let result = try PinPalImport.parse(csv: csv)
-            parsedSessions = result.sessions
-            issues = result.issues
-            preview = PinPalImport.preview(result.sessions)
+            let data = try Data(contentsOf: url)
+
+            let sessions: [PinPalImport.ImportedSession]
+            if PinPalBackup.looksLikePinPal(data) {
+                // Native .pinpal backup (embedded SQLite) — read it directly.
+                sessions = try PinPalBackup.parse(data: data)
+                issues = []
+            } else {
+                let csv = String(decoding: data, as: UTF8.self)
+                let result = try PinPalImport.parse(csv: csv)
+                sessions = result.sessions
+                issues = result.issues
+            }
+            guard !sessions.isEmpty else { throw PinPalImport.ImportError.noSessions }
+            parsedSessions = sessions
+            preview = PinPalImport.preview(sessions)
             phase = .previewing
         } catch let error as PinPalImport.ImportError {
+            phase = .failed(describe(error))
+        } catch let error as PinPalBackup.Failure {
             phase = .failed(describe(error))
         } catch {
             phase = .failed("Could not read the file: \(error.localizedDescription)")
@@ -64,6 +77,14 @@ final class PinPalImportService {
         case .emptyFile: return "The file is empty."
         case .missingDateColumn: return "No Date column found — is this a PinPal export?"
         case .noSessions: return "No readable sessions found in the file."
+        }
+    }
+
+    private func describe(_ error: PinPalBackup.Failure) -> String {
+        switch error {
+        case .notPinPal: return "This isn't a readable PinPal backup or CSV."
+        case .openFailed: return "Couldn't open the PinPal backup database."
+        case .noData: return "No sessions found in the PinPal backup."
         }
     }
 

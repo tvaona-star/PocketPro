@@ -35,7 +35,13 @@ struct PinPalImportView: View {
         .navigationBarTitleDisplayMode(.inline)
         .fileImporter(
             isPresented: $showingPicker,
-            allowedContentTypes: [.commaSeparatedText, .plainText],
+            // Accept a real PinPal backup (.pinpal, an embedded SQLite DB) as well
+            // as a CSV export. The service auto-detects which one it got.
+            allowedContentTypes: [
+                UTType(filenameExtension: "pinpal") ?? .data,
+                .commaSeparatedText,
+                .plainText,
+            ],
             allowsMultipleSelection: false
         ) { result in
             if case .success(let urls) = result, let url = urls.first {
@@ -58,10 +64,10 @@ struct PinPalImportView: View {
                 title: "What imports",
                 lines: [
                     "Sessions, dates, locations, league names",
-                    "Game scores and frame-by-frame pin counts",
+                    "Game scores and frame-by-frame pinfall",
+                    "Which pins you left — full leave, spare, and split history",
                     "Ball names (as records to complete later)",
                     "Oil pattern names and session notes",
-                    "Spare conversion history — re-derived from frames",
                 ]
             )
 
@@ -72,11 +78,10 @@ struct PinPalImportView: View {
                 lines: [
                     "Session types — PinPal has no league/tournament split; everything arrives as League, flagged for re-tagging",
                     "Ball specs, layouts, surface data — PinPal never stored them",
-                    "Which pins were left — PinPal exports counts only, so imported frames are excluded from leave-type breakdowns",
                 ]
             )
 
-            Text("Import is additive — nothing in Pocket Pro gets overwritten, and re-importing the same file never duplicates (PRD 13.4).")
+            Text("Pick your PinPal backup (the .pinpal file) — or a CSV export. Import is additive: nothing gets overwritten, and re-importing the same file never duplicates (PRD 13.4).")
                 .font(.system(size: 13))
                 .foregroundStyle(Theme.textSecondary)
 
