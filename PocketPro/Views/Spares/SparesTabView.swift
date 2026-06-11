@@ -12,7 +12,7 @@ struct SparesTabView: View {
     @State private var typeFilter: SessionType?
     @State private var dateRange: StatDateRange = .thisSeason
     @State private var ballFilter: UUID?
-    @State private var categoryFilter: LeaveCategory?
+    @State private var bucketFilter: SpareBucket?
     @State private var heatmapPin: Int?
     @State private var viewMode: ViewMode = .list
 
@@ -92,15 +92,15 @@ struct SparesTabView: View {
 
                         switch viewMode {
                         case .list:
-                            categoryChips
-                            LeaveFrequencyList(games: games, categoryFilter: categoryFilter, pinFilter: heatmapPin)
+                            bucketMenu
+                            LeaveFrequencyList(games: games, bucketFilter: bucketFilter, pinFilter: heatmapPin)
                         case .heatmap:
                             PinLeaveHeatmap(games: games, selectedPin: $heatmapPin)
                             if let pin = heatmapPin {
                                 Text("Showing leaves containing the \(pin) pin — tap the pin again to clear.")
                                     .font(.system(size: 12))
                                     .foregroundStyle(Theme.textMuted)
-                                LeaveFrequencyList(games: games, categoryFilter: nil, pinFilter: pin)
+                                LeaveFrequencyList(games: games, bucketFilter: nil, pinFilter: pin)
                             }
                         }
                     }
@@ -164,19 +164,49 @@ struct SparesTabView: View {
             .clipShape(Capsule())
     }
 
-    /// Category filter chips — full taxonomy (PRD 5.5.4).
-    private var categoryChips: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                FilterChip(label: "All", isActive: categoryFilter == nil) {
-                    categoryFilter = nil
+    /// Bucket filter dropdown (PRD 5.5.4): Single Pins / Multi Pins / Splits / Opens.
+    private var bucketMenu: some View {
+        HStack {
+            Menu {
+                Button("All leaves") { bucketFilter = nil }
+                ForEach(SpareBucket.allCases) { bucket in
+                    Button(bucket.rawValue) { bucketFilter = bucket }
                 }
-                ForEach([LeaveCategory.singlePin, .cornerPin, .sleeper, .cluster, .washout, .babySplit, .split, .bigSplit, .bucket, .bigFour, .sevenTen, .other]) { category in
-                    FilterChip(label: category.pluralDisplayName, isActive: categoryFilter == category) {
-                        categoryFilter = categoryFilter == category ? nil : category
-                    }
+            } label: {
+                HStack(spacing: 4) {
+                    Text(bucketFilter?.rawValue ?? "All leaves")
+                    Image(systemName: "chevron.down").font(.system(size: 11, weight: .bold))
                 }
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(bucketFilter != nil ? Color.white : Theme.textSecondary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .background(bucketFilter != nil ? Theme.accent : Theme.bgElevated)
+                .clipShape(Capsule())
             }
+            Spacer()
+        }
+    }
+}
+
+/// Spare leave buckets (PRD 5.5.4) — a UI grouping over the fine-grained
+/// LeaveCategory taxonomy. Single/Multi/Splits partition by geometry; Opens is
+/// outcome-based (leaves left open), which also replaces the old Miss Log.
+enum SpareBucket: String, CaseIterable, Identifiable {
+    case singlePins = "Single Pins"
+    case multiPins = "Multi Pins"
+    case splits = "Splits"
+    case opens = "Opens"
+
+    var id: String { rawValue }
+
+    func contains(_ entry: LeaveFrequencyEntry) -> Bool {
+        let isSplit = entry.classification.isSplit
+        switch self {
+        case .singlePins: return !isSplit && entry.pins.count == 1
+        case .multiPins:  return !isSplit && entry.pins.count >= 2
+        case .splits:     return isSplit
+        case .opens:      return entry.aggregate.opportunities > entry.aggregate.timesConverted
         }
     }
 }
@@ -230,12 +260,12 @@ struct CornerPinSpotlight: View {
 
 struct LeaveFrequencyList: View {
     let games: [GameRecord]
-    let categoryFilter: LeaveCategory?
+    let bucketFilter: SpareBucket?
     let pinFilter: Int?
 
     private var entries: [LeaveFrequencyEntry] {
         StatsEngine.leaveFrequency(games: games).filter { entry in
-            if let categoryFilter, !entry.classification.categories.contains(categoryFilter) { return false }
+            if let bucketFilter, !bucketFilter.contains(entry) { return false }
             if let pinFilter, !entry.pins.contains(pinFilter) { return false }
             return true
         }
