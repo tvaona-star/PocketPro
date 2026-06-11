@@ -7,9 +7,12 @@ import PocketProCore
 struct StatsTabView: View {
     @Query(sort: \Session.date, order: .reverse) private var allSessions: [Session]
     @Query(filter: #Predicate<Ball> { $0.active }) private var arsenal: [Ball]
+    @Query(sort: \LeagueEvent.createdAt, order: .reverse) private var leagueEvents: [LeagueEvent]
     @AppStorage(SettingsKeys.seasonDefinition) private var seasonRaw = SeasonDefinition.usbc.rawValue
 
     @State private var typeFilter: SessionType?
+    /// A specific league/tournament to scope stats to (nil = all of the selected type).
+    @State private var eventFilter: UUID?
     @State private var dateRange: StatDateRange = .thisSeason
     @State private var customFrom = Calendar.current.date(byAdding: .month, value: -1, to: Date()) ?? Date()
     @State private var customTo = Date()
@@ -51,6 +54,7 @@ struct StatsTabView: View {
             .filter { session in
                 if session.isActive { return false }
                 if let typeFilter, session.type != typeFilter { return false }
+                if let eventFilter, session.leagueEvent?.id != eventFilter { return false }
                 if let start = rangeStart, session.date < start { return false }
                 if let end = rangeEnd, session.date > end { return false }
                 return true
@@ -134,6 +138,37 @@ struct StatsTabView: View {
                 }
             }
             .pickerStyle(.segmented)
+
+            if !leagueEvents.isEmpty {
+                HStack(spacing: 8) {
+                    Menu {
+                        Button("All leagues & tournaments") { eventFilter = nil }
+                        let leagues = leagueEvents.filter { $0.kind == .league && !$0.isArchived }
+                        let tournaments = leagueEvents.filter { $0.kind == .tournament && !$0.isArchived }
+                        if !leagues.isEmpty {
+                            Section("Leagues") {
+                                ForEach(leagues) { event in
+                                    Button(event.name) { eventFilter = event.id }
+                                }
+                            }
+                        }
+                        if !tournaments.isEmpty {
+                            Section("Tournaments") {
+                                ForEach(tournaments) { event in
+                                    Button(event.name) { eventFilter = event.id }
+                                }
+                            }
+                        }
+                    } label: {
+                        filterPill(
+                            icon: "trophy",
+                            label: leagueEvents.first { $0.id == eventFilter }?.name ?? "League / Event",
+                            active: eventFilter != nil
+                        )
+                    }
+                    Spacer()
+                }
+            }
 
             HStack(spacing: 8) {
                 Menu {
