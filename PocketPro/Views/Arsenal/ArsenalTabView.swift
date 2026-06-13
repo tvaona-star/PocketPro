@@ -12,7 +12,6 @@ struct ArsenalTabView: View {
     @State private var compareBall: Ball?
     @State private var deleteCandidate: Ball?
     @State private var sortOption: BallSort = .name
-    @State private var compactCards = false
 
     enum BallSort: String, CaseIterable, Identifiable {
         case name = "Name"
@@ -119,13 +118,6 @@ struct ArsenalTabView: View {
                                     Text(option.rawValue).tag(option)
                                 }
                             }
-                            Divider()
-                            Button {
-                                compactCards.toggle()
-                            } label: {
-                                Label(compactCards ? "Expanded cards" : "Compact cards",
-                                      systemImage: compactCards ? "rectangle.expand.vertical" : "rectangle.compress.vertical")
-                            }
                         } label: {
                             Image(systemName: "arrow.up.arrow.down")
                         }
@@ -165,19 +157,7 @@ struct ArsenalTabView: View {
     }
 
     private func ballRow(_ ball: Ball) -> some View {
-        ZStack {
-            NavigationLink {
-                BallDetailView(ball: ball)
-            } label: {
-                EmptyView()
-            }
-            .opacity(0)
-            if compactCards {
-                BallCardCompact(ball: ball)
-            } else {
-                BallCard(ball: ball, gamesSincePrep: ArsenalActions.gamesSinceLastPrep(ball: ball, sessions: sessions))
-            }
-        }
+        BallCard(ball: ball, gamesSincePrep: ArsenalActions.gamesSinceLastPrep(ball: ball, sessions: sessions))
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
         .listRowInsets(EdgeInsets(top: 5, leading: 16, bottom: 5, trailing: 16))
@@ -270,66 +250,63 @@ struct BallThumbnail: View {
     }
 }
 
-/// Condensed one-line card (PRD 5.4 collapse): name, year, weight only.
-struct BallCardCompact: View {
-    let ball: Ball
-
-    var body: some View {
-        HStack(spacing: 12) {
-            BallThumbnail(urlString: ball.imageURLString, coverstock: ball.coverstockType, size: 30)
-            Text(ball.displayName)
-                .font(Theme.cardTitle)
-                .foregroundStyle(Theme.textPrimary)
-                .lineLimit(1)
-            Spacer(minLength: 8)
-            if let year = ball.year {
-                Text(String(year))
-                    .font(.system(size: 12).monospacedDigit())
-                    .foregroundStyle(Theme.textMuted)
-            }
-            Text("\(ball.weight) lb")
-                .font(.system(size: 13, weight: .bold).monospacedDigit())
-                .foregroundStyle(Theme.textSecondary)
-            Image(systemName: "chevron.right")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(Theme.textMuted)
-        }
-        .card()
-    }
-}
-
-/// Ball card (PRD 5.4.3) — Tier 1: decision-relevant data, never truncated.
+/// Ball card (PRD 5.4.3) — collapsed by default: photo, name, brand, year, weight.
+/// Expand (chevron) to reveal coverstock, specs, layout, and a link to full detail.
 struct BallCard: View {
     let ball: Ball
     var gamesSincePrep: Int = 0
+    @State private var expanded = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .top, spacing: 12) {
-                BallThumbnail(urlString: ball.imageURLString, coverstock: ball.coverstockType, size: 46)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(ball.displayName)
-                        .font(Theme.cardTitle)
-                        .foregroundStyle(Theme.textPrimary)
-                    HStack(spacing: 6) {
-                        if !ball.manufacturer.isEmpty {
-                            Text(ball.manufacturer)
-                                .font(.system(size: 11))
-                                .foregroundStyle(Theme.textMuted)
-                        }
-                        if let year = ball.year {
-                            Text(String(year))
-                                .font(.system(size: 11))
-                                .foregroundStyle(Theme.textMuted)
-                        }
+        VStack(alignment: .leading, spacing: 10) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) { expanded.toggle() }
+            } label: {
+                header
+            }
+            .buttonStyle(.plain)
+
+            if expanded {
+                expandedDetail
+            }
+        }
+        .card()
+    }
+
+    private var header: some View {
+        HStack(alignment: .center, spacing: 12) {
+            BallThumbnail(urlString: ball.imageURLString, coverstock: ball.coverstockType, size: 46)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(ball.displayName)
+                    .font(Theme.cardTitle)
+                    .foregroundStyle(Theme.textPrimary)
+                    .lineLimit(1)
+                HStack(spacing: 6) {
+                    if !ball.manufacturer.isEmpty {
+                        Text(ball.manufacturer)
+                            .font(.system(size: 11))
+                            .foregroundStyle(Theme.textMuted)
+                    }
+                    if let year = ball.year {
+                        Text(String(year))
+                            .font(.system(size: 11))
+                            .foregroundStyle(Theme.textMuted)
                     }
                 }
-                Spacer()
-                Text("\(ball.weight) lb")
-                    .font(.system(size: 14, weight: .bold).monospacedDigit())
-                    .foregroundStyle(Theme.textSecondary)
             }
+            Spacer()
+            Text("\(ball.weight) lb")
+                .font(.system(size: 14, weight: .bold).monospacedDigit())
+                .foregroundStyle(Theme.textSecondary)
+            Image(systemName: expanded ? "chevron.up" : "chevron.down")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Theme.textMuted)
+        }
+        .contentShape(Rectangle())
+    }
 
+    private var expandedDetail: some View {
+        VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
                 CoverstockBadge(type: ball.coverstockType)
                 ThumbBadge(type: ball.thumbType)
@@ -364,8 +341,21 @@ struct BallCard: View {
                         .lineLimit(1)
                 }
             }
+
+            NavigationLink {
+                BallDetailView(ball: ball)
+            } label: {
+                HStack(spacing: 4) {
+                    Text("View full details")
+                        .font(.system(size: 13, weight: .semibold))
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 11, weight: .semibold))
+                }
+                .foregroundStyle(Theme.accent)
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 2)
         }
-        .card()
     }
 
     private func specPair(_ label: String, _ value: String) -> some View {

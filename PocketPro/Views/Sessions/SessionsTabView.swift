@@ -579,12 +579,12 @@ struct SessionCard: View {
                 }
             }
 
-            HStack(spacing: 8) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 44), spacing: 6)], alignment: .leading, spacing: 6) {
                 ForEach(Array(scores.enumerated()), id: \.offset) { _, score in
                     Text("\(score)")
-                        .font(.system(size: 19, weight: .bold).monospacedDigit())
+                        .font(.system(size: 18, weight: .bold).monospacedDigit())
                         .foregroundStyle(Theme.textPrimary)
-                        .padding(.horizontal, 9)
+                        .frame(maxWidth: .infinity)
                         .padding(.vertical, 4)
                         .background(Theme.bgElevated)
                         .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))

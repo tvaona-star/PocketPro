@@ -124,30 +124,34 @@ struct SessionDetailView: View {
 
             let scores = session.sortedGames.map { $0.finalScore }
             if !scores.isEmpty {
-                HStack(spacing: 10) {
+                // Wrap to multiple rows so 7–12 games stay tidy instead of overflowing.
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 54), spacing: 12)], alignment: .leading, spacing: 8) {
                     ForEach(Array(scores.enumerated()), id: \.offset) { index, score in
                         VStack(spacing: 2) {
                             Text("\(score)")
-                                .font(Theme.statNumber(26))
+                                .font(Theme.statNumber(24))
                                 .foregroundStyle(Theme.textPrimary)
                             Text("G\(index + 1)")
                                 .font(.system(size: 11, weight: .medium))
                                 .foregroundStyle(Theme.textMuted)
                         }
-                    }
-                    Spacer()
-                    if scores.count > 1 {
-                        VStack(spacing: 2) {
-                            Text(Notation.oneDecimal(Double(scores.reduce(0, +)) / Double(scores.count)))
-                                .font(Theme.statNumber(26))
-                                .foregroundStyle(Theme.accent)
-                            Text("AVG")
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundStyle(Theme.textMuted)
-                        }
+                        .frame(maxWidth: .infinity)
                     }
                 }
                 .padding(.top, 4)
+                if scores.count > 1 {
+                    HStack(spacing: 6) {
+                        Text("AVG")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(Theme.textMuted)
+                        Text(Notation.oneDecimal(Double(scores.reduce(0, +)) / Double(scores.count)))
+                            .font(.system(size: 17, weight: .bold).monospacedDigit())
+                            .foregroundStyle(Theme.accent)
+                        Text("· High \(scores.max() ?? 0)")
+                            .font(.system(size: 12))
+                            .foregroundStyle(Theme.textSecondary)
+                    }
+                }
             }
         }
     }
