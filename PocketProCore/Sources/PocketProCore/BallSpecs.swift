@@ -55,6 +55,8 @@ public struct BallDBRecord: Codable, Identifiable, Hashable, Sendable {
     public let coreName: String?
     public let asymmetric: Bool
     public let factoryFinish: String?
+    /// Product photo URL from the ball database (token-free original). nil if unknown.
+    public let imageURL: String?
     /// Specs keyed by weight string "12"..."16" (PRD 9.4).
     public let specsByWeight: [String: WeightSpec]
     /// Brunswick shared-core linkage (PRD 5.4.2): records sharing a core carry the same ID.
@@ -74,6 +76,7 @@ public struct BallDBRecord: Codable, Identifiable, Hashable, Sendable {
         case coreName = "core_name"
         case asymmetric
         case factoryFinish = "factory_finish"
+        case imageURL = "image_url"
         case specsByWeight = "specs_by_weight"
         case sharedCoreID = "shared_core_id"
         case dbStatus = "db_status"
@@ -91,6 +94,7 @@ public struct BallDBRecord: Codable, Identifiable, Hashable, Sendable {
         coreName: String?,
         asymmetric: Bool,
         factoryFinish: String?,
+        imageURL: String? = nil,
         specsByWeight: [String: WeightSpec],
         sharedCoreID: String?,
         dbStatus: String
@@ -106,6 +110,7 @@ public struct BallDBRecord: Codable, Identifiable, Hashable, Sendable {
         self.coreName = coreName
         self.asymmetric = asymmetric
         self.factoryFinish = factoryFinish
+        self.imageURL = imageURL
         self.specsByWeight = specsByWeight
         self.sharedCoreID = sharedCoreID
         self.dbStatus = dbStatus

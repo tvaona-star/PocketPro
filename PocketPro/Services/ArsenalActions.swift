@@ -17,6 +17,7 @@ enum ArsenalActions {
         ball.coreName = record.coreName
         ball.asymmetric = record.asymmetric
         ball.factoryFinish = record.factoryFinish
+        ball.imageURLString = record.imageURL
         ball.sharedCoreID = record.sharedCoreID
         ball.weight = weight
         ball.importedShell = false

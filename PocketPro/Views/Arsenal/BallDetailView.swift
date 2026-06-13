@@ -102,6 +102,10 @@ struct BallDetailView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
+            if ball.imageURLString != nil {
+                BallThumbnail(urlString: ball.imageURLString, coverstock: ball.coverstockType, size: 120)
+                    .frame(maxWidth: .infinity, alignment: .center)
+            }
             HStack {
                 CoverstockBadge(type: ball.coverstockType)
                 ThumbBadge(type: ball.thumbType)

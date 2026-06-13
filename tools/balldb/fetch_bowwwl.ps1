@@ -163,6 +163,18 @@ function Parse-Ball {
     $ym = [regex]::Match($release, '(\d{4})')
     if ($ym.Success) { $year = [int]$ym.Groups[1].Value }
 
+    # Ball photo: the <img> inside field-ball-image. Use the token-free original
+    # (strip the Drupal image-style path + ?itok= token) so the URL doesn't expire.
+    $imgUrl = $null
+    $imgM = [regex]::Match($Html, '(?is)field--name-field-ball-image.*?<img\b[^>]*\ssrc="([^"]+)"')
+    if ($imgM.Success) {
+        $src = $imgM.Groups[1].Value
+        $src = $src -replace '\?.*$', ''
+        $src = $src -replace '/styles/[^/]+/public/', '/'
+        if ($src -notmatch '^https?://') { $src = "$Base$src" }
+        $imgUrl = $src
+    }
+
     # Per-weight specs: split the core-specs region on each "N pounds" card.
     $specs = [ordered]@{}
     $specRegionMatch = [regex]::Match($Html, '(?is)field--name-field-core-specs(.*?)(?:</article>|field--name-field-coolwick|footer)')
@@ -197,6 +209,7 @@ function Parse-Ball {
         core_name       = if ($coreName) { $coreName } else { $null }
         asymmetric      = [bool]$asym
         factory_finish  = if ($finish) { $finish } else { $null }
+        image_url       = $imgUrl
         specs_by_weight = $specs
         shared_core_id  = $null
         db_status       = 'bowwwl'

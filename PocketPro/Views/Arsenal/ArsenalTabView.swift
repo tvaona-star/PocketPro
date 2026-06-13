@@ -235,15 +235,48 @@ struct ArsenalTabView: View {
     }
 }
 
+/// Async product photo with a coverstock-colored dot fallback (PRD 5.4).
+struct BallThumbnail: View {
+    let urlString: String?
+    let coverstock: CoverstockType?
+    var size: CGFloat = 44
+
+    var body: some View {
+        ZStack {
+            Circle().fill(Theme.bgElevated)
+            if let urlString, let url = URL(string: urlString) {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image.resizable().scaledToFit().padding(size * 0.06)
+                    case .empty:
+                        ProgressView().controlSize(.mini)
+                    default:
+                        placeholderDot
+                    }
+                }
+            } else {
+                placeholderDot
+            }
+        }
+        .frame(width: size, height: size)
+        .clipShape(Circle())
+    }
+
+    private var placeholderDot: some View {
+        Image(systemName: "circle.fill")
+            .font(.system(size: size * 0.22))
+            .foregroundStyle(Theme.coverstockColor(coverstock))
+    }
+}
+
 /// Condensed one-line card (PRD 5.4 collapse): name, year, weight only.
 struct BallCardCompact: View {
     let ball: Ball
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: "circle.fill")
-                .font(.system(size: 10))
-                .foregroundStyle(Theme.coverstockColor(ball.coverstockType))
+            BallThumbnail(urlString: ball.imageURLString, coverstock: ball.coverstockType, size: 30)
             Text(ball.displayName)
                 .font(Theme.cardTitle)
                 .foregroundStyle(Theme.textPrimary)
@@ -272,7 +305,8 @@ struct BallCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .firstTextBaseline) {
+            HStack(alignment: .top, spacing: 12) {
+                BallThumbnail(urlString: ball.imageURLString, coverstock: ball.coverstockType, size: 46)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(ball.displayName)
                         .font(Theme.cardTitle)

@@ -169,6 +169,13 @@ struct BallPersonalFieldsForm: View {
 
     var body: some View {
         Form {
+            if record.imageURL != nil {
+                Section {
+                    BallThumbnail(urlString: record.imageURL, coverstock: record.coverstockType, size: 120)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .listRowBackground(Color.clear)
+                }
+            }
             Section {
                 LabeledContent("Ball", value: record.displayName)
                 LabeledContent("Coverstock", value: record.coverstockName ?? record.coverstockType.displayName)

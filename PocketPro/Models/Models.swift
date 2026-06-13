@@ -254,6 +254,8 @@ final class Ball {
     var coreName: String?
     var asymmetric: Bool = false
     var factoryFinish: String?
+    /// Product photo URL from the ball database (PRD 5.4). nil for manual entries.
+    var imageURLString: String?
     /// Specs snapshot at the bowler's weight (PRD 9.4 fallback noted via specIsFallback).
     var rg: Double?
     var diff: Double?
