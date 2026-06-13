@@ -4,6 +4,9 @@ import SwiftData
 /// Five-tab navigation (PRD §4): Bowl, Sessions, Stats, Arsenal, Spares.
 /// Settings lives behind the gear in each tab's toolbar.
 struct RootView: View {
+    @Environment(\.modelContext) private var context
+    @Environment(BallDatabaseService.self) private var ballDB
+
     var body: some View {
         TabView {
             BowlTabView()
@@ -22,6 +25,9 @@ struct RootView: View {
                 .tabItem { Label("Spares", systemImage: "pin.fill") }
         }
         .background(Theme.bgPrimary)
+        .task {
+            ballDB.backfillImagesIfNeeded(context: context)
+        }
     }
 }
 

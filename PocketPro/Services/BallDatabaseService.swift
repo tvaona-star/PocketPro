@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import SwiftData
 import PocketProCore
 
 /// Read-only ball database (PRD §9): bundled seed file, replaceable over the air by
@@ -57,6 +58,33 @@ final class BallDatabaseService {
 
     func record(id: String) -> BallDBRecord? {
         balls.first { $0.id == id }
+    }
+
+    /// Backfill `imageURLString` for balls added before photos existed, matched to the
+    /// database by `dbBallID`. Idempotent — only touches balls missing an image.
+    @discardableResult
+    func backfillImages(context: ModelContext) -> Int {
+        let descriptor = FetchDescriptor<Ball>(predicate: #Predicate { $0.imageURLString == nil })
+        guard let balls = try? context.fetch(descriptor) else { return 0 }
+        var filled = 0
+        for ball in balls {
+            guard let dbID = ball.dbBallID, let url = record(id: dbID)?.imageURL else { continue }
+            ball.imageURLString = url
+            filled += 1
+        }
+        if filled > 0 { try? context.save() }
+        return filled
+    }
+
+    /// Runs the image backfill once per database version (re-runs after an OTA update
+    /// that may add new photos). Cheap no-op once everything is filled.
+    func backfillImagesIfNeeded(context: ModelContext) {
+        guard version > 0 else { return }
+        let key = "imageBackfillVersion"
+        let done = UserDefaults.standard.integer(forKey: key)
+        guard done < version else { return }
+        backfillImages(context: context)
+        UserDefaults.standard.set(version, forKey: key)
     }
 
     /// All brands present, sorted, for the brand filter.
