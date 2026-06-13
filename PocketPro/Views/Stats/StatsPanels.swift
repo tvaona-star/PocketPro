@@ -275,8 +275,15 @@ struct StrikeClustersPanel: View {
 
 struct SessionAveragesTable: View {
     let sessions: [Session]
+    let leagueEvents: [LeagueEvent]
     let rangeStart: Date?
     let rangeEnd: Date?
+
+    /// Names marked as sport-pattern — matched by name so it covers sessions
+    /// linked to a league only by name (e.g. imported PinPal weeks).
+    private var sportNames: Set<String> {
+        Set(leagueEvents.filter { $0.isSport }.map { $0.name.lowercased() })
+    }
 
     private struct Category: Identifiable {
         let label: String
@@ -320,10 +327,12 @@ struct SessionAveragesTable: View {
     }
 
     private func average(for category: Category) -> (value: String, games: Int) {
+        let sport = sportNames
         let games = sessions
             .filter { session in
                 if session.isActive || session.type != category.type { return false }
-                if (session.leagueEvent?.isSport ?? false) != category.sport { return false }
+                let name = (session.leagueName ?? session.eventName ?? "").lowercased()
+                if sport.contains(name) != category.sport { return false }
                 if let rangeStart, session.date < rangeStart { return false }
                 if let rangeEnd, session.date > rangeEnd { return false }
                 return true

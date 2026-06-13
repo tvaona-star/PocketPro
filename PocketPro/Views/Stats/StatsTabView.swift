@@ -144,7 +144,7 @@ struct StatsTabView: View {
                     } else {
                         SpareBreakdownPanel(games: games)
                         StrikeClustersPanel(stats: stats, sessions: allSessions)
-                        SessionAveragesTable(sessions: allSessions, rangeStart: rangeStart, rangeEnd: rangeEnd)
+                        SessionAveragesTable(sessions: allSessions, leagueEvents: leagueEvents, rangeStart: rangeStart, rangeEnd: rangeEnd)
                     }
                 }
                 .padding()
