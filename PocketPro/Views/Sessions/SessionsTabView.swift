@@ -93,17 +93,17 @@ struct SessionsTabView: View {
     }
 
     /// One group per tournament name — its event blocks plus created tournament events.
-    private func groupTournaments() -> [TournamentGroup] {
+    private func groupTournaments(includeArchived: Bool) -> [TournamentGroup] {
         var blocksByKey: [String: [Session]] = [:]
         var nameByKey: [String: String] = [:]
-        for session in allSessions where !session.isActive && !session.isArchived && session.type == .tournament {
+        for session in allSessions where !session.isActive && session.isArchived == includeArchived && session.type == .tournament {
             let name = session.eventName ?? session.leagueName ?? ""
             guard !name.isEmpty else { continue }
             let key = name.lowercased()
             blocksByKey[key, default: []].append(session)
             if nameByKey[key] == nil { nameByKey[key] = name }
         }
-        for event in leagueEvents where event.kind == .tournament && !event.isArchived && !event.name.isEmpty {
+        for event in leagueEvents where event.kind == .tournament && event.isArchived == includeArchived && !event.name.isEmpty {
             let key = event.name.lowercased()
             if blocksByKey[key] == nil { blocksByKey[key] = [] }
             if nameByKey[key] == nil { nameByKey[key] = event.name }
@@ -113,23 +113,28 @@ struct SessionsTabView: View {
             .sorted { $0.latest > $1.latest }
     }
 
-    private var tournamentGroups: [TournamentGroup] { groupTournaments() }
+    private var tournamentGroups: [TournamentGroup] { groupTournaments(includeArchived: false) }
+    private var archivedTournaments: [TournamentGroup] { groupTournaments(includeArchived: true) }
 
     /// Non-archived practice sessions, newest first.
     private var practiceSessions: [Session] {
         allSessions.filter { !$0.isActive && !$0.isArchived && $0.type == .practice }
     }
 
-    /// Archived one-off sessions (tournament/practice) — leagues archive by name
-    /// in `archivedLeagues`, so they're excluded here.
-    private var archivedSessions: [Session] {
-        allSessions.filter { !$0.isActive && $0.isArchived && $0.type != .league }
+    /// Archived practice sessions — leagues and tournaments archive as groups
+    /// (`archivedLeagues` / `archivedTournaments`), so only practice is per-session here.
+    private var archivedPractice: [Session] {
+        allSessions.filter { !$0.isActive && $0.isArchived && $0.type == .practice }
+    }
+
+    private var archivedCount: Int {
+        archivedLeagues.count + archivedTournaments.count + archivedPractice.count
     }
 
     /// True when there's nothing at all to show — drives the empty state.
     private var hasAnySessions: Bool {
         !leagues.isEmpty || !tournamentGroups.isEmpty || !practiceSessions.isEmpty
-            || !archivedLeagues.isEmpty || !archivedSessions.isEmpty
+            || !archivedLeagues.isEmpty || archivedCount > 0
     }
 
     var body: some View {
@@ -169,7 +174,7 @@ struct SessionsTabView: View {
                                 sectionHeaderRow("Tournaments", count: tournamentGroups.count, isExpanded: $tournamentsExpanded)
                                 if tournamentsExpanded {
                                     ForEach(tournamentGroups) { group in
-                                        tournamentNavRow(group)
+                                        tournamentNavRow(group, archived: false)
                                     }
                                 }
                             }
@@ -186,13 +191,13 @@ struct SessionsTabView: View {
                             }
                         }
 
-                        if !archivedLeagues.isEmpty || !archivedSessions.isEmpty {
+                        if archivedCount > 0 {
                             Section {
                                 Button {
                                     withAnimation(Theme.sectionSpring) { showArchived.toggle() }
                                 } label: {
                                     HStack {
-                                        Label("Archived (\(archivedLeagues.count + archivedSessions.count))", systemImage: "archivebox")
+                                        Label("Archived (\(archivedCount))", systemImage: "archivebox")
                                             .font(.system(size: 14, weight: .medium))
                                             .foregroundStyle(Theme.textSecondary)
                                         Spacer()
@@ -209,7 +214,10 @@ struct SessionsTabView: View {
                                     ForEach(archivedLeagues) { group in
                                         leagueNavRow(group, archived: true)
                                     }
-                                    ForEach(archivedSessions) { session in
+                                    ForEach(archivedTournaments) { group in
+                                        tournamentNavRow(group, archived: true)
+                                    }
+                                    ForEach(archivedPractice) { session in
                                         sessionNavRow(session, archived: true)
                                     }
                                 }
@@ -330,8 +338,8 @@ struct SessionsTabView: View {
         }
     }
 
-    /// A tournament group row with navigation and archive/delete swipes.
-    private func tournamentNavRow(_ group: TournamentGroup) -> some View {
+    /// A tournament group row with navigation and archive/delete (or unarchive) swipes.
+    private func tournamentNavRow(_ group: TournamentGroup, archived: Bool) -> some View {
         ZStack {
             NavigationLink {
                 TournamentDetailView(tournamentName: group.name)
@@ -346,10 +354,17 @@ struct SessionsTabView: View {
             Button(role: .destructive) {
                 deleteTournamentCandidate = group.name
             } label: { Label("Delete", systemImage: "trash") }
-            Button {
-                setTournamentArchived(group.name, true)
-            } label: { Label("Archive", systemImage: "archivebox") }
-            .tint(Theme.warning)
+            if archived {
+                Button {
+                    setTournamentArchived(group.name, false)
+                } label: { Label("Unarchive", systemImage: "arrow.uturn.up") }
+                .tint(Theme.accent)
+            } else {
+                Button {
+                    setTournamentArchived(group.name, true)
+                } label: { Label("Archive", systemImage: "archivebox") }
+                .tint(Theme.warning)
+            }
         }
     }
 
