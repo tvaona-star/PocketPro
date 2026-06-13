@@ -11,6 +11,7 @@ struct NewLeagueSheet: View {
     @State private var name = ""
     @State private var startDate = Date()
     @State private var gamesPerWeek = 3
+    @State private var isSport = false
 
     var body: some View {
         NavigationStack {
@@ -19,6 +20,7 @@ struct NewLeagueSheet: View {
                     TextField("Name (e.g. Tuesday Classic)", text: $name)
                     DatePicker("Start date", selection: $startDate, displayedComponents: .date)
                     Stepper("Games per week: \(gamesPerWeek)", value: $gamesPerWeek, in: 1...12)
+                    Toggle("Sport pattern league", isOn: $isSport)
                 } header: {
                     Text("League")
                 } footer: {
@@ -36,6 +38,7 @@ struct NewLeagueSheet: View {
                         league.kind = .league
                         league.startDate = startDate
                         league.gamesPerWeek = gamesPerWeek
+                        league.isSport = isSport
                         context.insert(league)
                         dismiss()
                     }
@@ -57,6 +60,7 @@ struct LeagueEditSheet: View {
     @State private var startDate = Date()
     @State private var hasStartDate = false
     @State private var gamesPerWeek = 3
+    @State private var isSport = false
 
     var body: some View {
         NavigationStack {
@@ -67,6 +71,7 @@ struct LeagueEditSheet: View {
                         DatePicker("Start date", selection: $startDate, displayedComponents: .date)
                     }
                     Stepper("Games per week: \(gamesPerWeek)", value: $gamesPerWeek, in: 1...12)
+                    Toggle("Sport pattern league", isOn: $isSport)
                 }
             }
             .navigationTitle(leagueName)
@@ -82,6 +87,7 @@ struct LeagueEditSheet: View {
                     hasStartDate = existing.startDate != nil
                     startDate = existing.startDate ?? Date()
                     gamesPerWeek = existing.gamesPerWeek
+                    isSport = existing.isSport
                 }
             }
         }
@@ -97,6 +103,7 @@ struct LeagueEditSheet: View {
         }()
         league.startDate = hasStartDate ? startDate : nil
         league.gamesPerWeek = gamesPerWeek
+        league.isSport = isSport
         dismiss()
     }
 }

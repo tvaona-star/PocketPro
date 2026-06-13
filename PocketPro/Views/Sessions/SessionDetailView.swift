@@ -353,6 +353,7 @@ struct SessionEditSheet: View {
     @State private var type: SessionType = .league
     @State private var name = ""
     @State private var date = Date()
+    @State private var isSport = false
 
     private var nameSuggestions: [String] {
         guard type == .league || type == .tournament else { return [] }
@@ -380,6 +381,7 @@ struct SessionEditSheet: View {
                 if type == .league || type == .tournament {
                     Section(type == .league ? "League" : "Tournament") {
                         TextField("Name", text: $name)
+                        Toggle("Sport pattern", isOn: $isSport)
                         ForEach(nameSuggestions, id: \.self) { suggestion in
                             Button {
                                 name = suggestion
@@ -406,6 +408,7 @@ struct SessionEditSheet: View {
                 type = session.type
                 name = session.leagueName ?? session.eventName ?? ""
                 date = session.date
+                isSport = session.leagueEvent?.isSport ?? false
             }
         }
     }
@@ -419,11 +422,15 @@ struct SessionEditSheet: View {
         case .league:
             session.leagueName = trimmed.isEmpty ? nil : trimmed
             session.eventName = nil
-            session.leagueEvent = trimmed.isEmpty ? nil : findOrCreateEvent(trimmed, kind: .league)
+            let event = trimmed.isEmpty ? nil : findOrCreateEvent(trimmed, kind: .league)
+            event?.isSport = isSport
+            session.leagueEvent = event
         case .tournament:
             session.eventName = trimmed.isEmpty ? nil : trimmed
             session.leagueName = trimmed.isEmpty ? nil : trimmed
-            session.leagueEvent = trimmed.isEmpty ? nil : findOrCreateEvent(trimmed, kind: .tournament)
+            let event = trimmed.isEmpty ? nil : findOrCreateEvent(trimmed, kind: .tournament)
+            event?.isSport = isSport
+            session.leagueEvent = event
         case .practice:
             session.leagueName = nil
             session.eventName = nil

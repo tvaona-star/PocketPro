@@ -58,6 +58,9 @@ final class LeagueEvent {
     var kindRaw: String = LeagueEventKind.league.rawValue
     var createdAt: Date = Date()
     var isArchived: Bool = false
+    /// True for sport-pattern (PBA/sport-compliant) leagues and tournaments —
+    /// kept separate in the averages table.
+    var isSport: Bool = false
     /// When the league season started (PRD 5.2). nil for tournaments.
     var startDate: Date?
     /// Games bowled each week — pre-fills the week's scorecard (PRD 5.2).

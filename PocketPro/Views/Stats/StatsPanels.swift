@@ -278,43 +278,59 @@ struct SessionAveragesTable: View {
     let rangeStart: Date?
     let rangeEnd: Date?
 
+    private struct Category: Identifiable {
+        let label: String
+        let type: SessionType
+        let sport: Bool
+        var id: String { label }
+    }
+
+    /// League, Tournament, Sport League, Sport Tournament — no Practice.
+    private let categories: [Category] = [
+        Category(label: "League", type: .league, sport: false),
+        Category(label: "Tournament", type: .tournament, sport: false),
+        Category(label: "Sport League", type: .league, sport: true),
+        Category(label: "Sport Tournament", type: .tournament, sport: true),
+    ]
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             Text("Averages by Type")
                 .font(Theme.cardTitle)
                 .foregroundStyle(Theme.textPrimary)
-            Grid(horizontalSpacing: 12, verticalSpacing: 8) {
-                GridRow {
-                    ForEach(SessionType.allCases) { type in
-                        Text(type.displayName)
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(Theme.textSecondary)
-                    }
+            ForEach(categories) { category in
+                HStack {
+                    Text(category.label)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(Theme.textSecondary)
+                    Spacer()
+                    let result = average(for: category)
+                    Text(result.value)
+                        .font(.system(size: 17, weight: .bold).monospacedDigit())
+                        .foregroundStyle(result.games > 0 ? Theme.textPrimary : Theme.textMuted)
+                    Text(result.games > 0 ? "(\(result.games))" : "")
+                        .font(.system(size: 11).monospacedDigit())
+                        .foregroundStyle(Theme.textMuted)
+                        .frame(width: 44, alignment: .leading)
                 }
-                GridRow {
-                    ForEach(SessionType.allCases) { type in
-                        Text(average(for: type))
-                            .font(.system(size: 18, weight: .bold).monospacedDigit())
-                            .foregroundStyle(Theme.textPrimary)
-                    }
-                }
+                .padding(.vertical, 2)
             }
-            .frame(maxWidth: .infinity)
         }
         .card()
     }
 
-    private func average(for type: SessionType) -> String {
+    private func average(for category: Category) -> (value: String, games: Int) {
         let games = sessions
             .filter { session in
-                if session.isActive || session.type != type { return false }
+                if session.isActive || session.type != category.type { return false }
+                if (session.leagueEvent?.isSport ?? false) != category.sport { return false }
                 if let rangeStart, session.date < rangeStart { return false }
                 if let rangeEnd, session.date > rangeEnd { return false }
                 return true
             }
             .flatMap { $0.gameRecords() }
-        guard !games.isEmpty else { return "--" }
+        guard !games.isEmpty else { return ("--", 0) }
         let avg = Double(games.reduce(0) { $0 + $1.finalScore }) / Double(games.count)
-        return Notation.oneDecimal(avg)
+        return (Notation.oneDecimal(avg), games.count)
     }
 }
