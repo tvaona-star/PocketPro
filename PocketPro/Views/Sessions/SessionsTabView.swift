@@ -27,6 +27,17 @@ struct SessionsTabView: View {
         Set(leagueEvents.filter { $0.kind == .league && $0.isArchived }.map { $0.name.lowercased() })
     }
 
+    /// League/event names flagged as sport-pattern — drives the "Sport" pill.
+    private var sportNames: Set<String> {
+        Set(leagueEvents.filter { $0.isSport }.map { $0.name.lowercased() })
+    }
+    private func isSport(_ session: Session) -> Bool {
+        sportNames.contains((session.leagueName ?? session.eventName ?? "").lowercased())
+    }
+    private func isSportLeague(_ name: String) -> Bool {
+        sportNames.contains(name.lowercased())
+    }
+
     private struct LeagueGroup: Identifiable {
         let name: String
         let weeks: [Session]
@@ -297,7 +308,7 @@ struct SessionsTabView: View {
                 SessionDetailView(session: session)
             } label: { EmptyView() }
             .opacity(0)
-            SessionCard(session: session, arsenal: arsenal)
+            SessionCard(session: session, arsenal: arsenal, isSport: isSport(session))
         }
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
@@ -326,9 +337,14 @@ struct SessionsTabView: View {
                 .font(.system(size: 16))
                 .foregroundStyle(Theme.accent)
             VStack(alignment: .leading, spacing: 2) {
-                Text(group.name)
-                    .font(Theme.cardTitle)
-                    .foregroundStyle(Theme.textPrimary)
+                HStack(spacing: 6) {
+                    Text(group.name)
+                        .font(Theme.cardTitle)
+                        .foregroundStyle(Theme.textPrimary)
+                    if isSportLeague(group.name) {
+                        Badge(text: "Sport", color: Theme.warning)
+                    }
+                }
                 Text("\(group.weeks.count) week\(group.weeks.count == 1 ? "" : "s")"
                      + (group.weeks.first.map { " · last \($0.date.formatted(.dateTime.month(.abbreviated).day().year()))" } ?? ""))
                     .font(.system(size: 12))
@@ -540,6 +556,7 @@ struct SessionFilterSheet: View {
 struct SessionCard: View {
     let session: Session
     let arsenal: [Ball]
+    var isSport: Bool = false
 
     private var scores: [Int] {
         session.sortedGames.map { $0.finalScore }
@@ -559,6 +576,9 @@ struct SessionCard: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Badge(text: session.type.displayName, color: Theme.sessionTypeColor(session.type))
+                if isSport {
+                    Badge(text: "Sport", color: Theme.warning)
+                }
                 if session.flaggedAsPotentialDuplicate {
                     Badge(text: "Possible duplicate", color: Theme.warning)
                 }
