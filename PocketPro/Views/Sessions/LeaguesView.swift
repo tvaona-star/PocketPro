@@ -303,13 +303,21 @@ struct LeagueDetailView: View {
     }
 
     private func weekRow(_ week: Session) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        let series = week.sortedGames.map { $0.finalScore }.reduce(0, +)
+        let hasScores = week.sortedGames.contains { $0.finalScore > 0 }
+        return VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 6) {
                 Text(week.date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day().year()))
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(Theme.textPrimary)
                 if week.isActive {
                     Badge(text: "In progress", color: Theme.warning)
+                }
+                Spacer()
+                if hasScores {
+                    Text("Series \(series)")
+                        .font(.system(size: 14, weight: .bold).monospacedDigit())
+                        .foregroundStyle(Theme.accent)
                 }
             }
             HStack(spacing: 6) {
@@ -555,7 +563,9 @@ struct TournamentDetailView: View {
     }
 
     private func blockRow(_ block: Session) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        let series = block.sortedGames.map { $0.finalScore }.reduce(0, +)
+        let hasScores = block.sortedGames.contains { $0.finalScore > 0 }
+        return VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 6) {
                 Text(block.blockName?.isEmpty == false ? block.blockName! : "Event block")
                     .font(.system(size: 15, weight: .semibold))
@@ -565,6 +575,12 @@ struct TournamentDetailView: View {
                     .foregroundStyle(Theme.textMuted)
                 if block.isActive {
                     Badge(text: "In progress", color: Theme.warning)
+                }
+                Spacer()
+                if hasScores {
+                    Text("Series \(series)")
+                        .font(.system(size: 14, weight: .bold).monospacedDigit())
+                        .foregroundStyle(Theme.accent)
                 }
             }
             HStack(spacing: 6) {

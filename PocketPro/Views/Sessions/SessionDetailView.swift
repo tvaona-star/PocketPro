@@ -146,13 +146,13 @@ struct SessionDetailView: View {
                 .padding(.top, 4)
                 if scores.count > 1 {
                     HStack(spacing: 6) {
-                        Text("AVG")
+                        Text("SERIES")
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(Theme.textMuted)
-                        Text(Notation.oneDecimal(Double(scores.reduce(0, +)) / Double(scores.count)))
+                        Text("\(scores.reduce(0, +))")
                             .font(.system(size: 17, weight: .bold).monospacedDigit())
                             .foregroundStyle(Theme.accent)
-                        Text("· High \(scores.max() ?? 0)")
+                        Text("· avg \(Notation.oneDecimal(Double(scores.reduce(0, +)) / Double(scores.count))) · high \(scores.max() ?? 0)")
                             .font(.system(size: 12))
                             .foregroundStyle(Theme.textSecondary)
                     }
