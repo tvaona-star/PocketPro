@@ -387,6 +387,7 @@ struct SessionEditSheet: View {
     @State private var name = ""
     @State private var date = Date()
     @State private var isSport = false
+    @State private var blockName = ""
 
     private var nameSuggestions: [String] {
         guard type == .league || type == .tournament else { return [] }
@@ -410,6 +411,11 @@ struct SessionEditSheet: View {
                     }
                     .pickerStyle(.segmented)
                     DatePicker("Date", selection: $date, displayedComponents: .date)
+                }
+                if type == .tournament {
+                    Section("Event Block") {
+                        TextField("Block name (e.g. Qualifying)", text: $blockName)
+                    }
                 }
                 if type == .league || type == .tournament {
                     Section(type == .league ? "League" : "Tournament") {
@@ -442,6 +448,7 @@ struct SessionEditSheet: View {
                 name = session.leagueName ?? session.eventName ?? ""
                 date = session.date
                 isSport = session.leagueEvent?.isSport ?? false
+                blockName = session.blockName ?? ""
             }
         }
     }
@@ -458,16 +465,20 @@ struct SessionEditSheet: View {
             let event = trimmed.isEmpty ? nil : findOrCreateEvent(trimmed, kind: .league)
             event?.isSport = isSport
             session.leagueEvent = event
+            session.blockName = nil
         case .tournament:
             session.eventName = trimmed.isEmpty ? nil : trimmed
             session.leagueName = trimmed.isEmpty ? nil : trimmed
             let event = trimmed.isEmpty ? nil : findOrCreateEvent(trimmed, kind: .tournament)
             event?.isSport = isSport
             session.leagueEvent = event
+            let block = blockName.trimmingCharacters(in: .whitespaces)
+            session.blockName = block.isEmpty ? nil : block
         case .practice:
             session.leagueName = nil
             session.eventName = nil
             session.leagueEvent = nil
+            session.blockName = nil
         }
         dismiss()
     }

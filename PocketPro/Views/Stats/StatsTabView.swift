@@ -549,7 +549,9 @@ struct StatsCompareView: View {
             case .season:
                 key = Self.usbcSeasonLabel(for: session.date)
             }
-            let scores = session.gameRecords().map { $0.finalScore }.filter { $0 > 0 }
+            // Use the lightweight final scores only — gameRecords() also derives every
+            // leave (slow over a large history) and we don't need that here.
+            let scores = session.sortedGames.map { $0.finalScore }.filter { $0 > 0 }
             guard !scores.isEmpty else { continue }
             if buckets[key] == nil { order.append(key) }
             buckets[key, default: []].append(contentsOf: scores)
@@ -562,13 +564,14 @@ struct StatsCompareView: View {
         return result.sorted { $0.average > $1.average }
     }
 
-    private var maxAverage: Double {
-        groups.map { $0.average }.max() ?? 1
-    }
-
     var body: some View {
         NavigationStack {
             ScrollView {
+                // Compute the grouping once per render (it was previously recomputed
+                // three times — for the list, the bar scale, and the spread note).
+                let groups = self.groups
+                let maxAverage = groups.map { $0.average }.max() ?? 1
+
                 VStack(alignment: .leading, spacing: 14) {
                     Picker("Compare", selection: $dimension) {
                         ForEach(Dimension.allCases) { Text($0.rawValue).tag($0) }
@@ -583,10 +586,10 @@ struct StatsCompareView: View {
                             .padding(.top, 40)
                     } else {
                         ForEach(groups) { group in
-                            compareRow(group)
+                            compareRow(group, maxAverage: maxAverage)
                         }
                         if dimension == .league && groups.count >= 2 {
-                            spreadNote
+                            spreadNote(groups)
                         }
                     }
                 }
@@ -601,7 +604,7 @@ struct StatsCompareView: View {
         }
     }
 
-    private func compareRow(_ group: Group) -> some View {
+    private func compareRow(_ group: Group, maxAverage: Double) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Text(group.label)
@@ -631,7 +634,7 @@ struct StatsCompareView: View {
         .card()
     }
 
-    private var spreadNote: some View {
+    private func spreadNote(_ groups: [Group]) -> some View {
         let avgs = groups.map { $0.average }
         let spread = (avgs.max() ?? 0) - (avgs.min() ?? 0)
         return Text("Spread between highest and lowest average: \(Notation.oneDecimal(spread)) pins.")

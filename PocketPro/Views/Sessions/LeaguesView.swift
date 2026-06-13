@@ -413,6 +413,8 @@ struct TournamentDetailView: View {
     @State private var showingAddBlock = false
     @State private var newBlockName = ""
     @State private var showingEdit = false
+    @State private var renameTarget: Session?
+    @State private var renameText = ""
 
     private var event: LeagueEvent? {
         leagueEvents.first { $0.kind == .tournament && $0.name.caseInsensitiveCompare(tournamentName) == .orderedSame }
@@ -458,15 +460,24 @@ struct TournamentDetailView: View {
             } else {
                 Section("Blocks (\(blocks.count))") {
                     ForEach(blocks) { block in
-                        if block.isActive {
-                            Button { bowlingSession = block } label: { blockRow(block) }
-                                .buttonStyle(.plain)
-                        } else {
-                            NavigationLink {
-                                SessionDetailView(session: block)
-                            } label: {
-                                blockRow(block)
+                        Group {
+                            if block.isActive {
+                                Button { bowlingSession = block } label: { blockRow(block) }
+                                    .buttonStyle(.plain)
+                            } else {
+                                NavigationLink {
+                                    SessionDetailView(session: block)
+                                } label: {
+                                    blockRow(block)
+                                }
                             }
+                        }
+                        .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                            Button {
+                                renameTarget = block
+                                renameText = block.blockName ?? ""
+                            } label: { Label("Rename", systemImage: "pencil") }
+                            .tint(Theme.accent)
                         }
                     }
                     .onDelete { offsets in
@@ -492,6 +503,15 @@ struct TournamentDetailView: View {
             Button("Cancel", role: .cancel) { newBlockName = "" }
         } message: {
             Text("Name this block, then score its games.")
+        }
+        .alert("Rename Block", isPresented: Binding(get: { renameTarget != nil }, set: { if !$0 { renameTarget = nil } })) {
+            TextField("Block name", text: $renameText)
+            Button("Save") {
+                let trimmed = renameText.trimmingCharacters(in: .whitespaces)
+                renameTarget?.blockName = trimmed.isEmpty ? nil : trimmed
+                renameTarget = nil
+            }
+            Button("Cancel", role: .cancel) { renameTarget = nil }
         }
         .fullScreenCover(item: $bowlingSession) { session in
             NavigationStack {
