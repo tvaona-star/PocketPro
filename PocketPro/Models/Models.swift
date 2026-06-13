@@ -90,6 +90,9 @@ final class Session {
     var typeRaw: String = SessionType.league.rawValue
     var leagueName: String?
     var eventName: String?
+    /// Name of this block within a multi-block tournament (e.g. "Qualifying"). nil
+    /// for single-block tournaments and non-tournament sessions (PRD 5.2).
+    var blockName: String?
     var date: Date = Date()
     var notes: String = ""
     var createdAt: Date = Date()

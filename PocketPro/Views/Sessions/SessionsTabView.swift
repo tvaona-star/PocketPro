@@ -11,11 +11,13 @@ struct SessionsTabView: View {
     @Query(filter: #Predicate<Ball> { $0.active }) private var arsenal: [Ball]
 
     @State private var showingNewLeague = false
+    @State private var showingNewTournament = false
     @State private var showArchived = false
     @State private var leaguesExpanded = true
     @State private var tournamentsExpanded = true
     @State private var practiceExpanded = true
     @State private var deleteLeagueCandidate: String?
+    @State private var deleteTournamentCandidate: String?
 
     private var importReviewCount: Int {
         allSessions.filter { $0.importedFromPinPal && $0.needsTypeReview }.count
@@ -77,10 +79,41 @@ struct SessionsTabView: View {
     private var leagues: [LeagueGroup] { groupLeagues(includeArchived: false) }
     private var archivedLeagues: [LeagueGroup] { groupLeagues(includeArchived: true) }
 
-    /// Non-archived tournament sessions, newest first.
-    private var tournamentSessions: [Session] {
-        allSessions.filter { !$0.isActive && !$0.isArchived && $0.type == .tournament }
+    /// A tournament and its event blocks (parallel to a league and its weeks).
+    private struct TournamentGroup: Identifiable {
+        let name: String
+        let blocks: [Session]
+        var id: String { name.lowercased() }
+        var latest: Date { blocks.first?.date ?? .distantPast }
+        var average: Double? {
+            let scores = blocks.flatMap { $0.sortedGames }.map { $0.finalScore }.filter { $0 > 0 }
+            guard !scores.isEmpty else { return nil }
+            return Double(scores.reduce(0, +)) / Double(scores.count)
+        }
     }
+
+    /// One group per tournament name — its event blocks plus created tournament events.
+    private func groupTournaments() -> [TournamentGroup] {
+        var blocksByKey: [String: [Session]] = [:]
+        var nameByKey: [String: String] = [:]
+        for session in allSessions where !session.isActive && !session.isArchived && session.type == .tournament {
+            let name = session.eventName ?? session.leagueName ?? ""
+            guard !name.isEmpty else { continue }
+            let key = name.lowercased()
+            blocksByKey[key, default: []].append(session)
+            if nameByKey[key] == nil { nameByKey[key] = name }
+        }
+        for event in leagueEvents where event.kind == .tournament && !event.isArchived && !event.name.isEmpty {
+            let key = event.name.lowercased()
+            if blocksByKey[key] == nil { blocksByKey[key] = [] }
+            if nameByKey[key] == nil { nameByKey[key] = event.name }
+        }
+        return blocksByKey.keys
+            .map { TournamentGroup(name: nameByKey[$0] ?? $0, blocks: blocksByKey[$0] ?? []) }
+            .sorted { $0.latest > $1.latest }
+    }
+
+    private var tournamentGroups: [TournamentGroup] { groupTournaments() }
 
     /// Non-archived practice sessions, newest first.
     private var practiceSessions: [Session] {
@@ -95,7 +128,7 @@ struct SessionsTabView: View {
 
     /// True when there's nothing at all to show — drives the empty state.
     private var hasAnySessions: Bool {
-        !leagues.isEmpty || !tournamentSessions.isEmpty || !practiceSessions.isEmpty
+        !leagues.isEmpty || !tournamentGroups.isEmpty || !practiceSessions.isEmpty
             || !archivedLeagues.isEmpty || !archivedSessions.isEmpty
     }
 
@@ -131,12 +164,12 @@ struct SessionsTabView: View {
                             }
                         }
 
-                        if !tournamentSessions.isEmpty {
+                        if !tournamentGroups.isEmpty {
                             Section {
-                                sectionHeaderRow("Tournaments", count: tournamentSessions.count, isExpanded: $tournamentsExpanded)
+                                sectionHeaderRow("Tournaments", count: tournamentGroups.count, isExpanded: $tournamentsExpanded)
                                 if tournamentsExpanded {
-                                    ForEach(tournamentSessions) { session in
-                                        sessionNavRow(session, archived: false)
+                                    ForEach(tournamentGroups) { group in
+                                        tournamentNavRow(group)
                                     }
                                 }
                             }
@@ -191,10 +224,19 @@ struct SessionsTabView: View {
             .navigationTitle("Sessions")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        showingNewLeague = true
+                    Menu {
+                        Button {
+                            showingNewLeague = true
+                        } label: {
+                            Label("New League", systemImage: "trophy")
+                        }
+                        Button {
+                            showingNewTournament = true
+                        } label: {
+                            Label("New Tournament", systemImage: "flag.checkered")
+                        }
                     } label: {
-                        Label("New League", systemImage: "plus")
+                        Image(systemName: "plus")
                     }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
@@ -203,6 +245,10 @@ struct SessionsTabView: View {
             }
             .sheet(isPresented: $showingNewLeague) {
                 NewLeagueSheet()
+                    .presentationDetents([.medium])
+            }
+            .sheet(isPresented: $showingNewTournament) {
+                NewTournamentSheet()
                     .presentationDetents([.medium])
             }
             .confirmationDialog(
@@ -218,6 +264,20 @@ struct SessionsTabView: View {
                 Button("Cancel", role: .cancel) { deleteLeagueCandidate = nil }
             } message: { name in
                 Text("Permanently removes \(name) and every week and game in it. To keep the data for stats but hide it here, use Archive instead.")
+            }
+            .confirmationDialog(
+                "Delete \(deleteTournamentCandidate ?? "tournament")?",
+                isPresented: Binding(get: { deleteTournamentCandidate != nil }, set: { if !$0 { deleteTournamentCandidate = nil } }),
+                titleVisibility: .visible,
+                presenting: deleteTournamentCandidate
+            ) { name in
+                Button("Delete tournament & all blocks", role: .destructive) {
+                    deleteTournament(name)
+                    deleteTournamentCandidate = nil
+                }
+                Button("Cancel", role: .cancel) { deleteTournamentCandidate = nil }
+            } message: { name in
+                Text("Permanently removes \(name) and every event block and game in it. To keep the data for stats but hide it here, use Archive instead.")
             }
         }
     }
@@ -245,6 +305,89 @@ struct SessionsTabView: View {
         for event in leagueEvents where event.kind == .league && event.name.lowercased() == key {
             context.delete(event)
         }
+    }
+
+    /// Archive every event block of a tournament (still counted in Stats).
+    private func setTournamentArchived(_ name: String, _ archived: Bool) {
+        let key = name.lowercased()
+        for session in allSessions where session.type == .tournament
+            && (session.eventName ?? session.leagueName ?? "").lowercased() == key {
+            session.isArchived = archived
+        }
+        if let event = leagueEvents.first(where: { $0.kind == .tournament && $0.name.lowercased() == key }) {
+            event.isArchived = archived
+        }
+    }
+
+    private func deleteTournament(_ name: String) {
+        let key = name.lowercased()
+        for session in allSessions where session.type == .tournament
+            && (session.eventName ?? session.leagueName ?? "").lowercased() == key {
+            context.delete(session)
+        }
+        for event in leagueEvents where event.kind == .tournament && event.name.lowercased() == key {
+            context.delete(event)
+        }
+    }
+
+    /// A tournament group row with navigation and archive/delete swipes.
+    private func tournamentNavRow(_ group: TournamentGroup) -> some View {
+        ZStack {
+            NavigationLink {
+                TournamentDetailView(tournamentName: group.name)
+            } label: { EmptyView() }
+            .opacity(0)
+            tournamentRow(group)
+        }
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
+        .listRowInsets(EdgeInsets(top: 5, leading: 16, bottom: 5, trailing: 16))
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            Button(role: .destructive) {
+                deleteTournamentCandidate = group.name
+            } label: { Label("Delete", systemImage: "trash") }
+            Button {
+                setTournamentArchived(group.name, true)
+            } label: { Label("Archive", systemImage: "archivebox") }
+            .tint(Theme.warning)
+        }
+    }
+
+    private func tournamentRow(_ group: TournamentGroup) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: "flag.checkered")
+                .font(.system(size: 16))
+                .foregroundStyle(Theme.sessionTypeColor(.tournament))
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(group.name)
+                        .font(Theme.cardTitle)
+                        .foregroundStyle(Theme.textPrimary)
+                    if isSportLeague(group.name) {
+                        Badge(text: "Sport", color: Theme.warning)
+                    }
+                }
+                Text("\(group.blocks.count) block\(group.blocks.count == 1 ? "" : "s")"
+                     + (group.blocks.first.map { " · last \($0.date.formatted(.dateTime.month(.abbreviated).day().year()))" } ?? ""))
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.textSecondary)
+            }
+            Spacer()
+            if let avg = group.average {
+                VStack(alignment: .trailing, spacing: 1) {
+                    Text(Notation.oneDecimal(avg))
+                        .font(.system(size: 17, weight: .bold).monospacedDigit())
+                        .foregroundStyle(Theme.textPrimary)
+                    Text("AVG")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(Theme.textMuted)
+                }
+            }
+            Image(systemName: "chevron.right")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Theme.textMuted)
+        }
+        .card()
     }
 
     /// Tappable section header used by Leagues / Tournaments / Practice.

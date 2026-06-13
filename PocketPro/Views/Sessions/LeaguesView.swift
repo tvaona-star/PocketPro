@@ -355,3 +355,230 @@ struct LeagueDetailView: View {
         bowlingSession = session
     }
 }
+
+// MARK: - Create a tournament (PRD 5.2: a container for one or more event blocks)
+
+struct NewTournamentSheet: View {
+    @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var name = ""
+    @State private var date = Date()
+    @State private var isSport = false
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("Name (e.g. City Open)", text: $name)
+                    DatePicker("Date", selection: $date, displayedComponents: .date)
+                    Toggle("Sport pattern", isOn: $isSport)
+                } header: {
+                    Text("Tournament")
+                } footer: {
+                    Text("Then open the tournament and add each event block (e.g. Qualifying, Match Play) as you bowl it.")
+                }
+            }
+            .navigationTitle("New Tournament")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Create") {
+                        let event = LeagueEvent()
+                        event.name = name.trimmingCharacters(in: .whitespaces)
+                        event.kind = .tournament
+                        event.startDate = date
+                        event.isSport = isSport
+                        context.insert(event)
+                        dismiss()
+                    }
+                    .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Tournament detail: every event block grouped under one tournament
+
+struct TournamentDetailView: View {
+    let tournamentName: String
+    @Environment(\.modelContext) private var context
+    @Query(sort: \Session.date, order: .reverse) private var allSessions: [Session]
+    @Query private var leagueEvents: [LeagueEvent]
+
+    @State private var bowlingSession: Session?
+    @State private var showingAddBlock = false
+    @State private var newBlockName = ""
+
+    private var event: LeagueEvent? {
+        leagueEvents.first { $0.kind == .tournament && $0.name.caseInsensitiveCompare(tournamentName) == .orderedSame }
+    }
+
+    private var blocks: [Session] {
+        allSessions.filter { session in
+            session.type == .tournament
+                && (session.eventName ?? session.leagueName ?? "").caseInsensitiveCompare(tournamentName) == .orderedSame
+        }
+    }
+
+    private var average: Double? {
+        let scores = blocks.filter { !$0.isActive }.flatMap { $0.sortedGames }.map { $0.finalScore }.filter { $0 > 0 }
+        guard !scores.isEmpty else { return nil }
+        return Double(scores.reduce(0, +)) / Double(scores.count)
+    }
+
+    var body: some View {
+        List {
+            Section {
+                headerCard
+            }
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 8, trailing: 16))
+
+            Section {
+                Button {
+                    showingAddBlock = true
+                } label: {
+                    Label("Add Event Block", systemImage: "plus.circle.fill")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(Theme.accent)
+                }
+            }
+
+            if blocks.isEmpty {
+                Section {
+                    Text("No blocks yet — add the event block you're bowling and score it.")
+                        .font(.system(size: 14))
+                        .foregroundStyle(Theme.textMuted)
+                }
+            } else {
+                Section("Blocks (\(blocks.count))") {
+                    ForEach(blocks) { block in
+                        if block.isActive {
+                            Button { bowlingSession = block } label: { blockRow(block) }
+                                .buttonStyle(.plain)
+                        } else {
+                            NavigationLink {
+                                SessionDetailView(session: block)
+                            } label: {
+                                blockRow(block)
+                            }
+                        }
+                    }
+                    .onDelete { offsets in
+                        for index in offsets { context.delete(blocks[index]) }
+                    }
+                }
+            }
+        }
+        .navigationTitle(tournamentName)
+        .navigationBarTitleDisplayMode(.inline)
+        .alert("New Event Block", isPresented: $showingAddBlock) {
+            TextField("Block name (e.g. Qualifying)", text: $newBlockName)
+            Button("Add & bowl") { addBlock() }
+            Button("Cancel", role: .cancel) { newBlockName = "" }
+        } message: {
+            Text("Name this block, then score its games.")
+        }
+        .fullScreenCover(item: $bowlingSession) { session in
+            NavigationStack {
+                LiveSessionView(session: session, onEnd: { bowlingSession = nil })
+                    .navigationTitle(session.blockName?.isEmpty == false ? session.blockName! : "Event Block")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .topBarLeading) {
+                            Button("Done for now") { bowlingSession = nil }
+                        }
+                    }
+            }
+        }
+    }
+
+    private var headerCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 16) {
+                stat(average.map { Notation.oneDecimal($0) } ?? "—", "Average")
+                stat("\(blocks.count)", "Blocks")
+                stat("\(blocks.flatMap { $0.sortedGames }.count)", "Games")
+            }
+            if event?.isSport == true {
+                Badge(text: "Sport pattern", color: Theme.warning)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .card()
+    }
+
+    private func stat(_ value: String, _ label: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(value)
+                .font(Theme.statNumber(24))
+                .foregroundStyle(Theme.textPrimary)
+            Text(label.uppercased())
+                .font(Theme.statLabel)
+                .foregroundStyle(Theme.textSecondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func blockRow(_ block: Session) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                Text(block.blockName?.isEmpty == false ? block.blockName! : "Event block")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Theme.textPrimary)
+                Text(block.date.formatted(.dateTime.month(.abbreviated).day().year()))
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.textMuted)
+                if block.isActive {
+                    Badge(text: "In progress", color: Theme.warning)
+                }
+            }
+            HStack(spacing: 6) {
+                ForEach(Array(block.sortedGames.enumerated()), id: \.offset) { _, game in
+                    Text("\(game.finalScore)")
+                        .font(.system(size: 15, weight: .bold).monospacedDigit())
+                        .foregroundStyle(Theme.textPrimary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Theme.bgElevated)
+                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                }
+                if block.sortedGames.isEmpty {
+                    Text("No games").font(.system(size: 13)).foregroundStyle(Theme.textMuted)
+                }
+            }
+        }
+        .padding(.vertical, 2)
+    }
+
+    private func addBlock() {
+        let trimmed = newBlockName.trimmingCharacters(in: .whitespaces)
+        newBlockName = ""
+        // Resume an in-progress block instead of starting a duplicate.
+        if let active = blocks.first(where: { $0.isActive }) {
+            bowlingSession = active
+            return
+        }
+        let session = Session()
+        session.type = .tournament
+        session.eventName = tournamentName
+        session.leagueName = tournamentName
+        session.blockName = trimmed.isEmpty ? nil : trimmed
+        session.leagueEvent = event
+        session.date = Date()
+        session.isActive = true
+        session.todaysBallIDs = blocks.first?.todaysBallIDs ?? []
+        context.insert(session)
+
+        let game = Game()
+        game.orderIndex = 0
+        game.session = session
+        game.ballID = blocks.first?.sortedGames.first?.ballID
+        context.insert(game)
+
+        bowlingSession = session
+    }
+}

@@ -116,6 +116,11 @@ struct SessionDetailView: View {
             Text(session.title)
                 .font(.system(size: 24, weight: .bold))
                 .foregroundStyle(Theme.textPrimary)
+            if let block = session.blockName, !block.isEmpty {
+                Text(block)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Theme.accent)
+            }
             if let location = session.location?.name {
                 Text(location)
                     .font(Theme.cardSubtitle)
