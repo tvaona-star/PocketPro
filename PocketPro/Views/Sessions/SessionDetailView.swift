@@ -13,6 +13,7 @@ struct SessionDetailView: View {
     @State private var noteFrame: Frame?
     @State private var showingDeleteConfirm = false
     @State private var showingEdit = false
+    @State private var showingMerge = false
 
     var body: some View {
         ScrollView {
@@ -47,6 +48,11 @@ struct SessionDetailView: View {
                             session.needsTypeReview = false
                         }
                     }
+                    Button {
+                        showingMerge = true
+                    } label: {
+                        Label("Merge into another session", systemImage: "arrow.triangle.merge")
+                    }
                     Divider()
                     Button(role: .destructive) {
                         showingDeleteConfirm = true
@@ -62,6 +68,12 @@ struct SessionDetailView: View {
             SessionEditSheet(session: session)
                 .presentationDetents([.medium, .large])
         }
+        .sheet(isPresented: $showingMerge) {
+            MergeSessionSheet(source: session) { target in
+                merge(into: target)
+            }
+            .presentationDetents([.medium, .large])
+        }
         .confirmationDialog("Delete this session?", isPresented: $showingDeleteConfirm, titleVisibility: .visible) {
             Button("Delete session", role: .destructive) {
                 context.delete(session)
@@ -75,6 +87,18 @@ struct SessionDetailView: View {
             FrameNoteSheet(frame: frame)
                 .presentationDetents([.medium, .large])
         }
+    }
+
+    /// Move this session's games into `target` (appended after its games) and remove
+    /// this session (PRD 5.2 merge). Games keep their frames via the cascade inverse.
+    private func merge(into target: Session) {
+        let base = (target.sortedGames.map { $0.orderIndex }.max() ?? -1) + 1
+        for (offset, game) in session.sortedGames.enumerated() {
+            game.session = target
+            game.orderIndex = base + offset
+        }
+        context.delete(session)
+        dismiss()
     }
 
     private var header: some View {
@@ -448,5 +472,87 @@ struct SessionEditSheet: View {
         event.kind = kind
         context.insert(event)
         return event
+    }
+}
+
+/// Pick a destination session to merge the current one into (PRD 5.2).
+struct MergeSessionSheet: View {
+    let source: Session
+    let onMerge: (Session) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @Query(sort: \Session.date, order: .reverse) private var allSessions: [Session]
+    @State private var confirmTarget: Session?
+
+    private var candidates: [Session] {
+        allSessions.filter { !$0.isActive && $0.id != source.id }
+    }
+
+    private var gameCount: Int { source.sortedGames.count }
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if candidates.isEmpty {
+                    EmptyStateView(
+                        icon: "arrow.triangle.merge",
+                        title: "No other sessions",
+                        message: "You need a second completed session to merge into."
+                    )
+                } else {
+                    List {
+                        Section {
+                            Text("Move all \(gameCount) game\(gameCount == 1 ? "" : "s") from this session into the one you pick. This session is then removed.")
+                                .font(.system(size: 13))
+                                .foregroundStyle(Theme.textSecondary)
+                                .listRowBackground(Color.clear)
+                        }
+                        Section("Merge into") {
+                            ForEach(candidates) { target in
+                                Button {
+                                    confirmTarget = target
+                                } label: {
+                                    mergeRow(target)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Merge Session")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) { Button("Cancel") { dismiss() } }
+            }
+            .confirmationDialog(
+                "Merge into \(confirmTarget?.title ?? "session")?",
+                isPresented: Binding(get: { confirmTarget != nil }, set: { if !$0 { confirmTarget = nil } }),
+                titleVisibility: .visible,
+                presenting: confirmTarget
+            ) { target in
+                Button("Merge \(gameCount) game\(gameCount == 1 ? "" : "s")") {
+                    confirmTarget = nil
+                    dismiss()
+                    onMerge(target)
+                }
+                Button("Cancel", role: .cancel) { confirmTarget = nil }
+            } message: { target in
+                Text("Games join \(target.title) and this session is removed. Scores are kept.")
+            }
+        }
+    }
+
+    private func mergeRow(_ target: Session) -> some View {
+        HStack(spacing: 10) {
+            Badge(text: target.type.displayName, color: Theme.sessionTypeColor(target.type))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(target.title)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Theme.textPrimary)
+                Text("\(target.date.formatted(.dateTime.month(.abbreviated).day().year())) · \(target.sortedGames.count) game\(target.sortedGames.count == 1 ? "" : "s")")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.textSecondary)
+            }
+            Spacer()
+        }
     }
 }
