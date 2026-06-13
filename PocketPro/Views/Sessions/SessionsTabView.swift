@@ -466,7 +466,7 @@ struct SessionsTabView: View {
                 SessionDetailView(session: session)
             } label: { EmptyView() }
             .opacity(0)
-            SessionCard(session: session, arsenal: arsenal, isSport: isSport(session))
+            practiceRow(session)
         }
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
@@ -487,6 +487,48 @@ struct SessionsTabView: View {
                 .tint(Theme.warning)
             }
         }
+    }
+
+    /// Compact practice row, matching the league/tournament row format so every
+    /// section looks the same under its collapsible header. Taps into full detail.
+    private func practiceRow(_ session: Session) -> some View {
+        let scores = session.sortedGames.map { $0.finalScore }.filter { $0 > 0 }
+        let avg = scores.isEmpty ? nil : Double(scores.reduce(0, +)) / Double(scores.count)
+        return HStack(spacing: 12) {
+            Image(systemName: "figure.bowling")
+                .font(.system(size: 16))
+                .foregroundStyle(Theme.sessionTypeColor(.practice))
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(session.date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day().year()))
+                        .font(Theme.cardTitle)
+                        .foregroundStyle(Theme.textPrimary)
+                    if isSport(session) {
+                        Badge(text: "Sport", color: Theme.warning)
+                    }
+                }
+                Text("\(session.sortedGames.count) game\(session.sortedGames.count == 1 ? "" : "s")"
+                     + (session.location?.name.map { " · \($0)" } ?? ""))
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.textSecondary)
+                    .lineLimit(1)
+            }
+            Spacer()
+            if let avg {
+                VStack(alignment: .trailing, spacing: 1) {
+                    Text(Notation.oneDecimal(avg))
+                        .font(.system(size: 17, weight: .bold).monospacedDigit())
+                        .foregroundStyle(Theme.textPrimary)
+                    Text("AVG")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(Theme.textMuted)
+                }
+            }
+            Image(systemName: "chevron.right")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Theme.textMuted)
+        }
+        .card()
     }
 
     private func leagueRow(_ group: LeagueGroup) -> some View {
