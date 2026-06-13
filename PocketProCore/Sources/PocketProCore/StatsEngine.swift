@@ -108,6 +108,8 @@ public struct DashboardStats: Equatable, Sendable {
     public let sessionsCount: Int
     public let strikePercent: Double?
     public let sparePercent: Double?
+    /// Conversion rate on single-pin leaves only (the makeable-spare headline).
+    public let singleSparePercent: Double?
     public let splitPercent: Double?
     public let openFramePercent: Double?
     public let cleanGamePercent: Double?
@@ -152,6 +154,8 @@ public enum StatsEngine {
         var splitLeaves = 0
         var spareAttempts = 0
         var spareMakes = 0
+        var singleAttempts = 0
+        var singleMakes = 0
         var openFrames = 0
         var totalFrames = 0
         var cleanGames = 0
@@ -201,6 +205,10 @@ public enum StatsEngine {
                 if leave.hadOpportunity {
                     spareAttempts += 1
                     if leave.converted { spareMakes += 1 }
+                    if leave.pins.count == 1 {
+                        singleAttempts += 1
+                        if leave.converted { singleMakes += 1 }
+                    }
                 }
             }
         }
@@ -216,6 +224,7 @@ public enum StatsEngine {
             sessionsCount: sessionIDs.count,
             strikePercent: percent(freshStrikes, freshTotal),
             sparePercent: percent(spareMakes, spareAttempts),
+            singleSparePercent: percent(singleMakes, singleAttempts),
             splitPercent: percent(splitLeaves, freshTotal),
             openFramePercent: percent(openFrames, totalFrames),
             cleanGamePercent: percent(cleanGames, framed.count),

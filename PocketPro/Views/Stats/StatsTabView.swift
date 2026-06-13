@@ -192,6 +192,18 @@ struct StatsTabView: View {
                         SpareBreakdownPanel(games: games)
                         StrikeClustersPanel(stats: stats, sessions: allSessions)
                         SessionAveragesTable(sessions: allSessions, leagueEvents: leagueEvents, rangeStart: rangeStart, rangeEnd: rangeEnd)
+
+                        Button {
+                            showingCompare = true
+                        } label: {
+                            Label("Compare Averages", systemImage: "chart.bar.xaxis")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundStyle(Theme.accent)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 13)
+                                .background(Theme.bgCard)
+                                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        }
                     }
                 }
                 .padding()
@@ -199,13 +211,6 @@ struct StatsTabView: View {
             .background(Theme.bgPrimary)
             .navigationTitle("Stats")
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        showingCompare = true
-                    } label: {
-                        Label("Compare", systemImage: "chart.bar.xaxis")
-                    }
-                }
                 ToolbarItem(placement: .topBarTrailing) {
                     SettingsToolbarLink()
                 }
@@ -290,13 +295,6 @@ struct StatsTabView: View {
                     }
                     .buttonStyle(.plain)
 
-                    Button {
-                        showingPatternPicker = true
-                    } label: {
-                        filterPill(icon: "drop", label: patternFilterLabel, active: !patternFilter.isEmpty)
-                    }
-                    .buttonStyle(.plain)
-
                     Menu {
                         ForEach(PatternCondition.allCases) { condition in
                             Button(condition.rawValue) { conditionFilter = condition }
@@ -304,6 +302,13 @@ struct StatsTabView: View {
                     } label: {
                         filterPill(icon: "road.lanes", label: conditionFilter == .all ? "House/Sport" : conditionFilter.rawValue, active: conditionFilter != .all)
                     }
+
+                    Button {
+                        showingPatternPicker = true
+                    } label: {
+                        filterPill(icon: "drop", label: patternFilterLabel, active: !patternFilter.isEmpty)
+                    }
+                    .buttonStyle(.plain)
                 }
                 .padding(.trailing, 4)
             }
@@ -378,7 +383,7 @@ struct StatsTabView: View {
 
         return LazyVGrid(columns: columns, spacing: 10) {
             StatTile(label: "Strike %", value: display(stats.strikePercent))
-            StatTile(label: "Spare %", value: display(stats.sparePercent))
+            StatTile(label: "Single Spare %", value: display(stats.singleSparePercent))
             StatTile(label: "Split %", value: display(stats.splitPercent))
             StatTile(label: "Open Frame %", value: display(stats.openFramePercent))
             StatTile(label: "Clean Game %", value: display(stats.cleanGamePercent))

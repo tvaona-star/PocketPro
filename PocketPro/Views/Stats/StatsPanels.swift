@@ -134,7 +134,7 @@ struct TrendSparkline: View {
 
 struct SpareBreakdownPanel: View {
     let games: [GameRecord]
-    @State private var isExpanded = true
+    @State private var isExpanded = false
 
     private struct Bucket: Identifiable {
         let label: String
@@ -201,7 +201,7 @@ struct SpareBreakdownPanel: View {
 struct StrikeClustersPanel: View {
     let stats: DashboardStats
     let sessions: [Session]
-    @State private var isExpanded = true
+    @State private var isExpanded = false
 
     private var firstBall: String {
         stats.firstBallAverage.map { Notation.oneDecimal($0) } ?? "--"
@@ -282,7 +282,7 @@ struct SessionAveragesTable: View {
     let leagueEvents: [LeagueEvent]
     let rangeStart: Date?
     let rangeEnd: Date?
-    @State private var isExpanded = true
+    @State private var isExpanded = false
 
     /// Names marked as sport-pattern — matched by name so it covers sessions
     /// linked to a league only by name (e.g. imported PinPal weeks).
