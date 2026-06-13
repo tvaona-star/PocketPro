@@ -138,20 +138,19 @@ struct SpareBreakdownPanel: View {
 
     private struct Bucket: Identifiable {
         let label: String
+        let indent: Bool
         let predicate: (LeaveRecord) -> Bool
         var id: String { label }
     }
 
-    /// Five buckets only (PRD 5.3, user-tuned). Each leave falls in exactly one:
-    /// a single non-corner pin, a corner pin (7/10 alone), the 7-10, a true split
-    /// (other than 7-10), or a multi-pin non-split cluster.
+    /// Single Pins (all), with Corner Pins shown as an indented subset; then
+    /// Multi Pins (non-split clusters) and Splits (all splits, including 7-10).
     private var buckets: [Bucket] {
         [
-            Bucket(label: "Single Pins") { $0.pins.count == 1 && !$0.categories.contains(.cornerPin) },
-            Bucket(label: "Corner Pins") { $0.pins.count == 1 && $0.categories.contains(.cornerPin) },
-            Bucket(label: "7-10") { $0.categories.contains(.sevenTen) },
-            Bucket(label: "Splits") { $0.categories.contains(.split) && !$0.categories.contains(.sevenTen) },
-            Bucket(label: "Multi Pin") { $0.pins.count >= 2 && !$0.categories.contains(.split) },
+            Bucket(label: "Single Pins", indent: false) { $0.pins.count == 1 },
+            Bucket(label: "Corner Pins", indent: true) { $0.pins.count == 1 && $0.categories.contains(.cornerPin) },
+            Bucket(label: "Multi Pins", indent: false) { $0.pins.count >= 2 && !$0.categories.contains(.split) },
+            Bucket(label: "Splits", indent: false) { $0.categories.contains(.split) },
         ]
     }
 
@@ -163,7 +162,8 @@ struct SpareBreakdownPanel: View {
                 ForEach(buckets) { bucket in
                     breakdownRow(
                         label: bucket.label,
-                        aggregate: StatsEngine.aggregate(games: games, matching: bucket.predicate)
+                        aggregate: StatsEngine.aggregate(games: games, matching: bucket.predicate),
+                        indent: bucket.indent
                     )
                 }
             }
@@ -175,11 +175,14 @@ struct SpareBreakdownPanel: View {
         return "\(all.timesLeft) leaves · \(Notation.percent(all.conversionPercent)) converted"
     }
 
-    private func breakdownRow(label: String, aggregate: LeaveAggregate) -> some View {
+    private func breakdownRow(label: String, aggregate: LeaveAggregate, indent: Bool = false) -> some View {
         HStack {
+            if indent {
+                Color.clear.frame(width: 16)
+            }
             Text(label)
-                .font(.system(size: 14, weight: .medium))
-                .foregroundStyle(Theme.textPrimary)
+                .font(.system(size: indent ? 13 : 14, weight: indent ? .regular : .medium))
+                .foregroundStyle(indent ? Theme.textSecondary : Theme.textPrimary)
             Spacer()
             Text("\(aggregate.timesConverted)/\(aggregate.timesLeft)")
                 .font(.system(size: 13).monospacedDigit())
@@ -199,52 +202,41 @@ struct StrikeClustersPanel: View {
     let stats: DashboardStats
     let sessions: [Session]
     @State private var isExpanded = true
-    @State private var historyExpanded = false
+
+    private var firstBall: String {
+        stats.firstBallAverage.map { Notation.oneDecimal($0) } ?? "--"
+    }
+    private var totalClusters: Int {
+        stats.streakCounts.values.reduce(0, +)
+    }
 
     var body: some View {
         SectionCard(title: "Strike Clusters", isExpanded: $isExpanded) {
-            Text("Most in a row \(stats.maxStreakInGame) · 1st ball \(stats.firstBallAverage.map { Notation.oneDecimal($0) } ?? "--")")
+            Text("1st ball \(firstBall) · \(totalClusters) cluster\(totalClusters == 1 ? "" : "s")")
         } content: {
             VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 10) {
-                    miniTile("Most in a Row", "\(stats.maxStreakInGame)")
-                    miniTile("1st Ball Avg", stats.firstBallAverage.map { Notation.oneDecimal($0) } ?? "--")
+                HStack {
+                    miniTile("1st Ball Avg", firstBall)
+                    Spacer()
                 }
 
-                if !stats.streakHistory.isEmpty {
-                    Button {
-                        withAnimation(Theme.sectionSpring) {
-                            historyExpanded.toggle()
-                        }
-                    } label: {
+                let lengths = stats.streakCounts.keys.sorted()
+                if lengths.isEmpty {
+                    Text("No back-to-back strikes yet.")
+                        .font(.system(size: 13))
+                        .foregroundStyle(Theme.textMuted)
+                } else {
+                    ForEach(lengths, id: \.self) { length in
                         HStack {
-                            Text("Streak history (\(stats.streakHistory.count))")
+                            Text(clusterName(length))
                                 .font(.system(size: 14, weight: .medium))
-                                .foregroundStyle(Theme.accent)
-                            Image(systemName: "chevron.down")
-                                .font(.system(size: 11, weight: .bold))
-                                .foregroundStyle(Theme.accent)
-                                .rotationEffect(.degrees(historyExpanded ? 180 : 0))
+                                .foregroundStyle(Theme.textPrimary)
+                            Spacer()
+                            Text("\(stats.streakCounts[length] ?? 0)")
+                                .font(.system(size: 15, weight: .bold).monospacedDigit())
+                                .foregroundStyle(Theme.textPrimary)
                         }
-                    }
-                    .buttonStyle(.plain)
-
-                    if historyExpanded {
-                        ForEach(Array(stats.streakHistory.prefix(20).enumerated()), id: \.offset) { _, streak in
-                            HStack {
-                                Text(streakName(streak.length))
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundStyle(Theme.textPrimary)
-                                Text("\(streak.length) in a row")
-                                    .font(.system(size: 13))
-                                    .foregroundStyle(Theme.textSecondary)
-                                Spacer()
-                                Text(streak.date, format: .dateTime.month(.abbreviated).day())
-                                    .font(.system(size: 13))
-                                    .foregroundStyle(Theme.textMuted)
-                            }
-                            .padding(.vertical, 2)
-                        }
+                        .padding(.vertical, 2)
                     }
                 }
             }
@@ -260,19 +252,21 @@ struct StrikeClustersPanel: View {
                 .font(Theme.statLabel)
                 .foregroundStyle(Theme.textSecondary)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: 170, alignment: .leading)
         .padding(10)
         .background(Theme.bgElevated)
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
-    private func streakName(_ length: Int) -> String {
+    private func clusterName(_ length: Int) -> String {
         switch length {
-        case 3: return "Turkey"
-        case 4: return "Four-bagger"
-        case 5: return "Five-bagger"
-        case 6: return "Six-pack"
-        default: return length >= 12 ? "Perfect run" : "\(length)-bagger"
+        case 2: return "Doubles"
+        case 3: return "Turkeys"
+        case 4: return "Four-baggers"
+        case 5: return "Five-baggers"
+        case 6: return "Six-packs"
+        case 12: return "Perfect games"
+        default: return "\(length)-baggers"
         }
     }
 }

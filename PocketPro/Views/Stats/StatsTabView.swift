@@ -129,6 +129,13 @@ struct StatsTabView: View {
 
                     primaryGrid(stats: stats, masked: belowThreshold)
 
+                    if stats.gamesCount > 0 {
+                        Text("Based on \(stats.gamesCount) game\(stats.gamesCount == 1 ? "" : "s") across \(stats.sessionsCount) session\(stats.sessionsCount == 1 ? "" : "s")")
+                            .font(.system(size: 12))
+                            .foregroundStyle(Theme.textMuted)
+                            .frame(maxWidth: .infinity, alignment: .center)
+                    }
+
                     if belowThreshold {
                         Text("Bowl more sessions to populate your stats — \(stats.gamesCount) of \(statThreshold) games.")
                             .font(Theme.cardSubtitle)

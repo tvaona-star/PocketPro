@@ -117,6 +117,8 @@ public struct DashboardStats: Equatable, Sendable {
     public let maxStreakInGame: Int
     public let firstBallAverage: Double?
     public let streakHistory: [StreakEvent]
+    /// Count of strike runs by length: 2 = doubles, 3 = turkeys, 4 = four-baggers, …
+    public let streakCounts: [Int: Int]
 }
 
 /// One row of the spare breakdown panel (PRD 5.3) or leave-frequency list (PRD 5.5.4).
@@ -158,6 +160,7 @@ public enum StatsEngine {
         var gamesWithTurkey = 0
         var maxStreak = 0
         var streakHistory: [StreakEvent] = []
+        var streakCounts: [Int: Int] = [:]
 
         for game in framed {
             let fresh = ScoringEngine.freshDeliveries(frames: game.frames)
@@ -185,6 +188,10 @@ public enum StatsEngine {
             }
             for s in gameStreaks where s >= 3 {
                 streakHistory.append(StreakEvent(sessionID: game.sessionID, gameID: game.id, date: game.date, length: s))
+            }
+            // Tally every run by length (2+): doubles, turkeys, four-baggers, …
+            for s in gameStreaks where s >= 2 {
+                streakCounts[s, default: 0] += 1
             }
 
             for leave in game.leaves {
@@ -217,7 +224,8 @@ public enum StatsEngine {
             turkeyPlusPercent: percent(gamesWithTurkey, framed.count),
             maxStreakInGame: maxStreak,
             firstBallAverage: freshTotal > 0 ? Double(freshPinfall) / Double(freshTotal) : nil,
-            streakHistory: streakHistory.sorted { $0.date > $1.date }
+            streakHistory: streakHistory.sorted { $0.date > $1.date },
+            streakCounts: streakCounts
         )
     }
 
