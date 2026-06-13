@@ -36,41 +36,44 @@ struct LiveSessionView: View {
     }
 
     var body: some View {
-        // No ScrollView — everything fits so the commit button is always visible (PRD 7.5).
-        VStack(alignment: .leading, spacing: 10) {
-            sessionHeader
+        // No ScrollView — the entry deck scales to the device's height so the commit
+        // button is always visible without scrolling, on any iPhone (PRD 7.5).
+        GeometryReader { geo in
+            VStack(alignment: .leading, spacing: 10) {
+                sessionHeader
 
-            if let game {
-                FrameStripView(game: game, editingFrameNumber: editingFrame?.number, onLongPressFrame: { frame in
-                    noteFrame = frame
-                }, onTapFrame: { frame in
-                    beginEditing(frame)
-                })
+                if let game {
+                    FrameStripView(game: game, editingFrameNumber: editingFrame?.number, onLongPressFrame: { frame in
+                        noteFrame = frame
+                    }, onTapFrame: { frame in
+                        beginEditing(frame)
+                    })
 
-                HStack(spacing: 8) {
-                    ballChip(game: game)
-                    Spacer()
-                    if !game.isComplete {
-                        Text("Max \(ScoringEngine.maxPossibleScore(frames: game.frameCounts))")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(Theme.textMuted)
+                    HStack(spacing: 8) {
+                        ballChip(game: game)
+                        Spacer()
+                        if !game.isComplete {
+                            Text("Max \(ScoringEngine.maxPossibleScore(frames: game.frameCounts))")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(Theme.textMuted)
+                        }
+                    }
+
+                    Spacer(minLength: 6)
+
+                    if game.isComplete {
+                        completedGamePrompt(game: game)
+                    } else if let editing = editingFrame, editingBallIndex == nil {
+                        editShotPicker(editing)
+                    } else {
+                        entryArea(game: game, availableHeight: geo.size.height)
                     }
                 }
-
-                Spacer(minLength: 6)
-
-                if game.isComplete {
-                    completedGamePrompt(game: game)
-                } else if let editing = editingFrame, editingBallIndex == nil {
-                    editShotPicker(editing)
-                } else {
-                    entryArea(game: game)
-                }
             }
+            .padding(.horizontal)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
-        .padding(.horizontal)
-        .padding(.vertical, 8)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Theme.bgPrimary)
         .sheet(isPresented: $showingEndOfGame, onDismiss: { endedGame = nil }) {
             if let endedGame {
@@ -224,10 +227,13 @@ struct LiveSessionView: View {
     }
 
     @ViewBuilder
-    private func entryArea(game: Game) -> some View {
+    private func entryArea(game: Game, availableHeight: CGFloat) -> some View {
         let entry = entryContext(game: game)
         // Re-seed the deck whenever we move to a new ball (see seedSelection).
         let entryKey = "\(entry.frameIndex):\(entry.ballIndex)"
+        // Size the pin deck to whatever vertical space is left after the fixed chrome,
+        // so it shrinks on small phones and never pushes the commit button off-screen.
+        let deckHeight = max(150, min(240, availableHeight - 400))
 
         VStack(spacing: 10) {
             HStack {
@@ -267,7 +273,7 @@ struct LiveSessionView: View {
                 let knockDown = entry.ballIndex >= 1
 
                 PinDeckView(available: rack, standingAfter: $standingSelection, selectsKnockedDown: knockDown)
-                    .frame(maxWidth: 300)
+                    .frame(maxWidth: 340, maxHeight: deckHeight)
                     .frame(maxWidth: .infinity)
 
                 Text(knockDown ? "Tap the pins you knocked down" : "Tap the pins left standing")
