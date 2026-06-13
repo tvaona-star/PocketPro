@@ -11,13 +11,57 @@ struct ArsenalTabView: View {
     @State private var showingAddBall = false
     @State private var compareBall: Ball?
     @State private var deleteCandidate: Ball?
+    @State private var sortOption: BallSort = .name
+    @State private var compactCards = false
+
+    enum BallSort: String, CaseIterable, Identifiable {
+        case name = "Name"
+        case weight = "Weight"
+        case year = "Year (newest)"
+        case manufacturer = "Brand"
+        case recent = "Recently used"
+        var id: String { rawValue }
+    }
 
     private var activeBalls: [Ball] {
-        balls.filter { $0.active }
+        sorted(balls.filter { $0.active })
     }
 
     private var retiredBalls: [Ball] {
-        balls.filter { !$0.active }
+        sorted(balls.filter { !$0.active })
+    }
+
+    /// Most recent session date each ball was used in — for the "Recently used" sort.
+    private var lastUsed: [UUID: Date] {
+        var map: [UUID: Date] = [:]
+        for session in sessions {            // sessions is already date-descending
+            for game in session.sortedGames {
+                for id in game.ballIDsUsed where map[id] == nil {
+                    map[id] = session.date
+                }
+            }
+        }
+        return map
+    }
+
+    private func sorted(_ list: [Ball]) -> [Ball] {
+        switch sortOption {
+        case .name:
+            return list.sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
+        case .weight:
+            return list.sorted { $0.weight > $1.weight }
+        case .year:
+            return list.sorted { ($0.year ?? 0) > ($1.year ?? 0) }
+        case .manufacturer:
+            return list.sorted {
+                let a = $0.manufacturer.isEmpty ? $0.brand : $0.manufacturer
+                let b = $1.manufacturer.isEmpty ? $1.brand : $1.manufacturer
+                return a.localizedCaseInsensitiveCompare(b) == .orderedAscending
+            }
+        case .recent:
+            let used = lastUsed
+            return list.sorted { (used[$0.id] ?? .distantPast) > (used[$1.id] ?? .distantPast) }
+        }
     }
 
     var body: some View {
@@ -67,6 +111,26 @@ struct ArsenalTabView: View {
                 ToolbarItem(placement: .topBarLeading) {
                     SettingsToolbarLink()
                 }
+                if !balls.isEmpty {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Menu {
+                            Picker("Sort by", selection: $sortOption) {
+                                ForEach(BallSort.allCases) { option in
+                                    Text(option.rawValue).tag(option)
+                                }
+                            }
+                            Divider()
+                            Button {
+                                compactCards.toggle()
+                            } label: {
+                                Label(compactCards ? "Expanded cards" : "Compact cards",
+                                      systemImage: compactCards ? "rectangle.expand.vertical" : "rectangle.compress.vertical")
+                            }
+                        } label: {
+                            Image(systemName: "arrow.up.arrow.down")
+                        }
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         showingAddBall = true
@@ -108,7 +172,11 @@ struct ArsenalTabView: View {
                 EmptyView()
             }
             .opacity(0)
-            BallCard(ball: ball, gamesSincePrep: ArsenalActions.gamesSinceLastPrep(ball: ball, sessions: sessions))
+            if compactCards {
+                BallCardCompact(ball: ball)
+            } else {
+                BallCard(ball: ball, gamesSincePrep: ArsenalActions.gamesSinceLastPrep(ball: ball, sessions: sessions))
+            }
         }
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
@@ -164,6 +232,36 @@ struct ArsenalTabView: View {
             .clipShape(Capsule())
         }
         .buttonStyle(.plain)
+    }
+}
+
+/// Condensed one-line card (PRD 5.4 collapse): name, year, weight only.
+struct BallCardCompact: View {
+    let ball: Ball
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "circle.fill")
+                .font(.system(size: 10))
+                .foregroundStyle(Theme.coverstockColor(ball.coverstockType))
+            Text(ball.displayName)
+                .font(Theme.cardTitle)
+                .foregroundStyle(Theme.textPrimary)
+                .lineLimit(1)
+            Spacer(minLength: 8)
+            if let year = ball.year {
+                Text(String(year))
+                    .font(.system(size: 12).monospacedDigit())
+                    .foregroundStyle(Theme.textMuted)
+            }
+            Text("\(ball.weight) lb")
+                .font(.system(size: 13, weight: .bold).monospacedDigit())
+                .foregroundStyle(Theme.textSecondary)
+            Image(systemName: "chevron.right")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Theme.textMuted)
+        }
+        .card()
     }
 }
 

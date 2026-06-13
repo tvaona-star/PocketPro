@@ -8,10 +8,14 @@ import PocketProCore
 /// weight is on neither axis. Empty quadrants reveal arsenal gaps.
 struct ArsenalChartView: View {
     @Query(filter: #Predicate<Ball> { $0.active }) private var balls: [Ball]
+    @Query(sort: \Bag.createdAt, order: .reverse) private var bags: [Bag]
 
     @State private var xAxis: ChartAxisOption = .rg
     @State private var yAxis: ChartAxisOption = .diff
     @State private var selectedBall: Ball?
+    /// Empty = show the whole arsenal; otherwise only these ball IDs are plotted.
+    @State private var filterBallIDs: Set<UUID> = []
+    @State private var showingBallPicker = false
 
     enum ChartAxisOption: String, CaseIterable, Identifiable {
         case rg = "RG"
@@ -52,15 +56,28 @@ struct ArsenalChartView: View {
         let y: Double
     }
 
+    /// Active arsenal narrowed by the ball/bag filter (empty filter = everything).
+    private var filteredBalls: [Ball] {
+        filterBallIDs.isEmpty ? balls : balls.filter { filterBallIDs.contains($0.id) }
+    }
+
     private var points: [ChartPoint] {
-        balls.compactMap { ball in
+        filteredBalls.compactMap { ball in
             guard let x = xAxis.value(for: ball), let y = yAxis.value(for: ball) else { return nil }
             return ChartPoint(id: ball.id, ball: ball, x: x, y: y)
         }
     }
 
     private var excludedCount: Int {
-        balls.count - points.count
+        filteredBalls.count - points.count
+    }
+
+    private func ballIDs(in bag: Bag) -> Set<UUID> {
+        Set(bag.defaultVariation?.sortedSlots.map { $0.ballID } ?? [])
+    }
+
+    private var filterLabel: String {
+        filterBallIDs.isEmpty ? "All balls" : "\(filterBallIDs.count) selected"
     }
 
     private var sizeByWeight: Bool {
@@ -73,6 +90,7 @@ struct ArsenalChartView: View {
                 axisMenu("X", selection: $xAxis)
                 axisMenu("Y", selection: $yAxis)
                 Spacer()
+                filterMenu
             }
             .padding(.horizontal)
 
@@ -107,6 +125,50 @@ struct ArsenalChartView: View {
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(item: $selectedBall) { ball in
             BallDetailView(ball: ball)
+        }
+        .sheet(isPresented: $showingBallPicker) {
+            ChartBallPickerSheet(balls: balls, selection: $filterBallIDs)
+                .presentationDetents([.medium, .large])
+        }
+    }
+
+    /// Filter the plotted balls to a bag or a hand-picked set (PRD 5.4.10).
+    private var filterMenu: some View {
+        Menu {
+            Button {
+                filterBallIDs = []
+            } label: {
+                Label("All balls", systemImage: filterBallIDs.isEmpty ? "checkmark" : "circle.grid.3x3")
+            }
+            if !bags.isEmpty {
+                Section("Bags") {
+                    ForEach(bags) { bag in
+                        Button {
+                            filterBallIDs = ballIDs(in: bag)
+                        } label: {
+                            Text(bag.name.isEmpty ? "Untitled bag" : bag.name)
+                        }
+                    }
+                }
+            }
+            Divider()
+            Button {
+                showingBallPicker = true
+            } label: {
+                Label("Choose balls…", systemImage: "checklist")
+            }
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: "line.3.horizontal.decrease.circle")
+                    .font(.system(size: 12))
+                Text(filterLabel)
+                    .font(.system(size: 13, weight: .semibold))
+            }
+            .foregroundStyle(filterBallIDs.isEmpty ? Theme.textPrimary : Theme.accent)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(Theme.bgElevated)
+            .clipShape(Capsule())
         }
     }
 
@@ -194,6 +256,57 @@ struct ArsenalChartView: View {
                     Text(type.displayName)
                         .font(.system(size: 11))
                         .foregroundStyle(Theme.textSecondary)
+                }
+            }
+        }
+    }
+}
+
+/// Multi-select list of balls to plot (PRD 5.4.10 chart filter).
+private struct ChartBallPickerSheet: View {
+    let balls: [Ball]
+    @Binding var selection: Set<UUID>
+    @Environment(\.dismiss) private var dismiss
+
+    private var sortedBalls: [Ball] {
+        balls.sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                ForEach(sortedBalls) { ball in
+                    Button {
+                        if selection.contains(ball.id) {
+                            selection.remove(ball.id)
+                        } else {
+                            selection.insert(ball.id)
+                        }
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: "circle.fill")
+                                .font(.system(size: 10))
+                                .foregroundStyle(Theme.coverstockColor(ball.coverstockType))
+                            Text(ball.displayName)
+                                .foregroundStyle(Theme.textPrimary)
+                            Spacer()
+                            if selection.contains(ball.id) {
+                                Image(systemName: "checkmark")
+                                    .foregroundStyle(Theme.accent)
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Filter Balls")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Clear") { selection = [] }
+                        .disabled(selection.isEmpty)
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { dismiss() }
                 }
             }
         }
