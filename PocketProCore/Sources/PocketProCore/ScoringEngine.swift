@@ -243,4 +243,18 @@ public enum ScoringEngine {
             return 10
         }
     }
+
+    /// Highest final score still achievable from the current (partial) game —
+    /// every remaining ball assumed to knock the most pins legally available.
+    public static func maxPossibleScore(frames: [[Int]]) -> Int {
+        var best: [[Int]] = []
+        for index in 0..<10 {
+            var frame = index < frames.count ? frames[index] : []
+            while !isFrameComplete(balls: frame, frameIndex: index) {
+                frame.append(maxPinsForNextBall(balls: frame, frameIndex: index))
+            }
+            best.append(frame)
+        }
+        return score(frames: best).final ?? 0
+    }
 }

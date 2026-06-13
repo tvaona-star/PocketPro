@@ -19,9 +19,9 @@ struct LiveSessionView: View {
     @State private var showingSessionNote = false
     @State private var noteFrame: Frame?
     @State private var endedGame: Game?
-    /// Frame being re-entered directly (tap a frame to edit it). Its existing
-    /// balls are replaced only when the first new ball is committed.
-    @State private var editingFrameNumber: Int?
+    /// Tapped frame whose individual shots are being chosen for editing. Picking a
+    /// shot re-enters from that ball, keeping the earlier balls in the frame.
+    @State private var editingFrame: Frame?
 
     private var entryMode: ScoreEntryMode {
         ScoreEntryMode(rawValue: entryModeRaw) ?? .pinDeck
@@ -37,16 +37,27 @@ struct LiveSessionView: View {
                 sessionHeader
 
                 if let game {
-                    FrameStripView(game: game, editingFrameNumber: editingFrameNumber, onLongPressFrame: { frame in
+                    FrameStripView(game: game, editingFrameNumber: editingFrame?.number, onLongPressFrame: { frame in
                         noteFrame = frame
                     }, onTapFrame: { frame in
                         beginEditing(frame)
                     })
 
+                    if !game.isComplete {
+                        HStack {
+                            Spacer()
+                            Text("Max possible \(ScoringEngine.maxPossibleScore(frames: game.frameCounts))")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(Theme.textMuted)
+                        }
+                    }
+
                     ballChip(game: game)
 
                     if game.isComplete {
                         completedGamePrompt(game: game)
+                    } else if let editing = editingFrame {
+                        editShotPicker(editing)
                     } else {
                         entryArea(game: game)
                     }
@@ -171,10 +182,6 @@ struct LiveSessionView: View {
     /// identity is unavailable (prior ball entered without pin data).
     private func entryContext(game: Game) -> EntryContext {
         let frames = game.sortedFrames
-        // Editing a tapped frame: re-enter it from ball 1 on a full rack.
-        if let editing = editingFrameNumber, frames.contains(where: { $0.number == editing }) {
-            return EntryContext(frameIndex: editing - 1, ballIndex: 0, rack: .full)
-        }
         for frame in frames {
             let index = frame.number - 1
             if !ScoringEngine.isFrameComplete(balls: frame.counts, frameIndex: index) {
@@ -220,16 +227,7 @@ struct LiveSessionView: View {
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(Theme.textSecondary)
                 Spacer()
-                if editingFrameNumber != nil {
-                    Button {
-                        editingFrameNumber = nil
-                        standingSelection = .empty
-                    } label: {
-                        Label("Cancel edit", systemImage: "xmark")
-                            .font(.system(size: 13, weight: .medium))
-                    }
-                    .foregroundStyle(Theme.warning)
-                } else if canUndo(game: game) {
+                if canUndo(game: game) {
                     Button {
                         undoLastBall(game: game)
                     } label: {
@@ -300,7 +298,6 @@ struct LiveSessionView: View {
         let standing = standingSelection
         let count = rack.count - standing.count
         let frame = frameForEntry(game: game, entry: entry)
-        clearForEditIfNeeded(frame)
         frame.balls.append(BallEntry(count: count, standingAfterMask: standing.mask))
         standingSelection = .empty
         afterCommit(game: game)
@@ -308,23 +305,69 @@ struct LiveSessionView: View {
 
     private func commitCountBall(game: Game, entry: EntryContext, count: Int) {
         let frame = frameForEntry(game: game, entry: entry)
-        clearForEditIfNeeded(frame)
         frame.balls.append(BallEntry(count: count, standingAfterMask: nil))
         afterCommit(game: game)
     }
 
-    /// Tap a frame to re-enter it; its old balls are wiped only when the first
-    /// replacement ball is committed, so tapping by mistake costs nothing.
+    /// Tap a frame to choose which shot to edit (the shot picker).
     private func beginEditing(_ frame: Frame) {
         guard !frame.balls.isEmpty else { return }
-        editingFrameNumber = frame.number
+        editingFrame = frame
         standingSelection = .empty
     }
 
-    private func clearForEditIfNeeded(_ frame: Frame) {
-        guard editingFrameNumber == frame.number else { return }
-        frame.balls.removeAll()
-        editingFrameNumber = nil
+    /// Re-enter from the chosen shot: drop that ball and the ones after it, keep
+    /// the earlier balls, and let normal entry resume at that ball.
+    private func editFromBall(_ frame: Frame, ballIndex: Int) {
+        if frame.balls.count > ballIndex {
+            frame.balls.removeLast(frame.balls.count - ballIndex)
+        }
+        editingFrame = nil
+        standingSelection = .empty
+    }
+
+    @ViewBuilder
+    private func editShotPicker(_ frame: Frame) -> some View {
+        VStack(spacing: 12) {
+            HStack {
+                Text("Frame \(frame.number) — edit which shot?")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Theme.textSecondary)
+                Spacer()
+                Button {
+                    editingFrame = nil
+                } label: {
+                    Label("Cancel", systemImage: "xmark")
+                        .font(.system(size: 13, weight: .medium))
+                }
+                .foregroundStyle(Theme.warning)
+            }
+            HStack(spacing: 8) {
+                ForEach(Array(frame.balls.enumerated()), id: \.offset) { index, ball in
+                    Button {
+                        editFromBall(frame, ballIndex: index)
+                    } label: {
+                        VStack(spacing: 3) {
+                            Text("Ball \(index + 1)")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(Theme.textMuted)
+                            Text(ball.count == 10 ? "X" : "\(ball.count)")
+                                .font(.system(size: 20, weight: .bold).monospacedDigit())
+                                .foregroundStyle(Theme.textPrimary)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(Theme.bgElevated)
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            Text("Re-enter from the shot you pick; earlier shots stay.")
+                .font(.system(size: 12))
+                .foregroundStyle(Theme.textMuted)
+        }
+        .card()
     }
 
     private func afterCommit(game: Game) {
