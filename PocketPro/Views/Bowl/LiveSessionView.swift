@@ -22,6 +22,10 @@ struct LiveSessionView: View {
     /// Tapped frame whose individual shots are being chosen for editing. Picking a
     /// shot re-enters from that ball, keeping the earlier balls in the frame.
     @State private var editingFrame: Frame?
+    /// Which shot of `editingFrame` is being re-entered (nil = still on the picker).
+    @State private var editingBallIndex: Int?
+    /// Snapshot of the frame's balls before editing, restored by Back/Cancel.
+    @State private var editingBackup: [BallEntry] = []
 
     private var entryMode: ScoreEntryMode {
         ScoreEntryMode(rawValue: entryModeRaw) ?? .pinDeck
@@ -32,39 +36,41 @@ struct LiveSessionView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                sessionHeader
+        // No ScrollView — everything fits so the commit button is always visible (PRD 7.5).
+        VStack(alignment: .leading, spacing: 10) {
+            sessionHeader
 
-                if let game {
-                    FrameStripView(game: game, editingFrameNumber: editingFrame?.number, onLongPressFrame: { frame in
-                        noteFrame = frame
-                    }, onTapFrame: { frame in
-                        beginEditing(frame)
-                    })
+            if let game {
+                FrameStripView(game: game, editingFrameNumber: editingFrame?.number, onLongPressFrame: { frame in
+                    noteFrame = frame
+                }, onTapFrame: { frame in
+                    beginEditing(frame)
+                })
 
-                    if !game.isComplete {
-                        HStack {
-                            Spacer()
-                            Text("Max possible \(ScoringEngine.maxPossibleScore(frames: game.frameCounts))")
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundStyle(Theme.textMuted)
-                        }
-                    }
-
+                HStack(spacing: 8) {
                     ballChip(game: game)
-
-                    if game.isComplete {
-                        completedGamePrompt(game: game)
-                    } else if let editing = editingFrame {
-                        editShotPicker(editing)
-                    } else {
-                        entryArea(game: game)
+                    Spacer()
+                    if !game.isComplete {
+                        Text("Max \(ScoringEngine.maxPossibleScore(frames: game.frameCounts))")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(Theme.textMuted)
                     }
                 }
+
+                Spacer(minLength: 6)
+
+                if game.isComplete {
+                    completedGamePrompt(game: game)
+                } else if let editing = editingFrame, editingBallIndex == nil {
+                    editShotPicker(editing)
+                } else {
+                    entryArea(game: game)
+                }
             }
-            .padding()
         }
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Theme.bgPrimary)
         .sheet(isPresented: $showingEndOfGame, onDismiss: { endedGame = nil }) {
             if let endedGame {
@@ -223,13 +229,28 @@ struct LiveSessionView: View {
         // Re-seed the deck whenever we move to a new ball (see seedSelection).
         let entryKey = "\(entry.frameIndex):\(entry.ballIndex)"
 
-        VStack(spacing: 12) {
+        VStack(spacing: 10) {
             HStack {
-                Text("Frame \(entry.frameIndex + 1) · Ball \(entry.ballIndex + 1)")
+                Text("\(editingFrame != nil ? "Editing " : "")Frame \(entry.frameIndex + 1) · Ball \(entry.ballIndex + 1)")
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(Theme.textSecondary)
+                    .foregroundStyle(editingFrame != nil ? Theme.accent : Theme.textSecondary)
                 Spacer()
-                if canUndo(game: game) {
+                if editingFrame != nil {
+                    Button {
+                        backToPicker()
+                    } label: {
+                        Label("Back", systemImage: "chevron.left")
+                            .font(.system(size: 13, weight: .medium))
+                    }
+                    .foregroundStyle(Theme.textSecondary)
+                    Button {
+                        cancelEdit()
+                    } label: {
+                        Label("Cancel", systemImage: "xmark")
+                            .font(.system(size: 13, weight: .medium))
+                    }
+                    .foregroundStyle(Theme.warning)
+                } else if canUndo(game: game) {
                     Button {
                         undoLastBall(game: game)
                     } label: {
@@ -246,7 +267,7 @@ struct LiveSessionView: View {
                 let knockDown = entry.ballIndex >= 1
 
                 PinDeckView(available: rack, standingAfter: $standingSelection, selectsKnockedDown: knockDown)
-                    .frame(maxWidth: 340)
+                    .frame(maxWidth: 300)
                     .frame(maxWidth: .infinity)
 
                 Text(knockDown ? "Tap the pins you knocked down" : "Tap the pins left standing")
@@ -347,16 +368,40 @@ struct LiveSessionView: View {
     private func beginEditing(_ frame: Frame) {
         guard !frame.balls.isEmpty else { return }
         editingFrame = frame
+        editingBallIndex = nil
+        editingBackup = frame.balls
         standingSelection = .empty
     }
 
-    /// Re-enter from the chosen shot: drop that ball and the ones after it, keep
-    /// the earlier balls, and let normal entry resume at that ball.
-    private func editFromBall(_ frame: Frame, ballIndex: Int) {
+    /// Pick which shot to re-enter: snapshot the frame, drop that ball and the ones
+    /// after it, then show normal entry for it. Back/Cancel restore the snapshot.
+    private func chooseShot(_ frame: Frame, ballIndex: Int) {
+        editingBackup = frame.balls
+        editingBallIndex = ballIndex
         if frame.balls.count > ballIndex {
             frame.balls.removeLast(frame.balls.count - ballIndex)
         }
+        standingSelection = .empty
+    }
+
+    /// Restore the frame and return to the shot picker.
+    private func backToPicker() {
+        if let frame = editingFrame { frame.balls = editingBackup }
+        editingBallIndex = nil
+        standingSelection = .empty
+    }
+
+    /// Restore the frame and leave edit mode entirely.
+    private func cancelEdit() {
+        if let frame = editingFrame { frame.balls = editingBackup }
+        clearEdit()
+    }
+
+    /// Leave edit mode, keeping the re-entered shots.
+    private func clearEdit() {
         editingFrame = nil
+        editingBallIndex = nil
+        editingBackup = []
         standingSelection = .empty
     }
 
@@ -369,7 +414,7 @@ struct LiveSessionView: View {
                     .foregroundStyle(Theme.textSecondary)
                 Spacer()
                 Button {
-                    editingFrame = nil
+                    cancelEdit()
                 } label: {
                     Label("Cancel", systemImage: "xmark")
                         .font(.system(size: 13, weight: .medium))
@@ -379,7 +424,7 @@ struct LiveSessionView: View {
             HStack(spacing: 8) {
                 ForEach(Array(frame.balls.enumerated()), id: \.offset) { index, ball in
                     Button {
-                        editFromBall(frame, ballIndex: index)
+                        chooseShot(frame, ballIndex: index)
                     } label: {
                         VStack(spacing: 3) {
                             Text("Ball \(index + 1)")
@@ -405,6 +450,8 @@ struct LiveSessionView: View {
     }
 
     private func afterCommit(game: Game) {
+        // A committed edit returns to normal entry for the rest of the frame/game.
+        if editingFrame != nil { clearEdit() }
         if game.isComplete {
             endedGame = game
             showingEndOfGame = true
