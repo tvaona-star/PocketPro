@@ -49,29 +49,59 @@ struct NewLeagueSheet: View {
     }
 }
 
-/// Edit a league's start date / games per week — creates the record for an
+/// Edit a league's start date / games per week, or convert the whole league
+/// (every week) to a Tournament or Practice — creates the record for an
 /// imported league that doesn't have one yet.
 struct LeagueEditSheet: View {
     let leagueName: String
     let existing: LeagueEvent?
+    /// Called after a conversion empties this league, so the detail view can pop.
+    var onConverted: (() -> Void)? = nil
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @Query(sort: \Session.date, order: .reverse) private var allSessions: [Session]
+    @Query private var leagueEvents: [LeagueEvent]
 
+    @State private var type: SessionType = .league
     @State private var startDate = Date()
     @State private var hasStartDate = false
     @State private var gamesPerWeek = 3
     @State private var isSport = false
 
+    /// The league's own sessions (its weeks) — what a conversion will re-tag.
+    private var weeks: [Session] {
+        allSessions.filter {
+            $0.type == .league && ($0.leagueName ?? "").caseInsensitiveCompare(leagueName) == .orderedSame
+        }
+    }
+
     var body: some View {
         NavigationStack {
             Form {
-                Section("Season") {
-                    Toggle("Set a start date", isOn: $hasStartDate)
-                    if hasStartDate {
-                        DatePicker("Start date", selection: $startDate, displayedComponents: .date)
+                Section {
+                    Picker("Type", selection: $type) {
+                        ForEach(SessionType.allCases) { Text($0.displayName).tag($0) }
                     }
-                    Stepper("Games per week: \(gamesPerWeek)", value: $gamesPerWeek, in: 1...12)
-                    Toggle("Sport pattern league", isOn: $isSport)
+                    .pickerStyle(.segmented)
+                } footer: {
+                    if type != .league {
+                        Text("Converts all \(weeks.count) week\(weeks.count == 1 ? "" : "s") under \(leagueName) to \(type.displayName) and removes the league grouping. Scores are kept.")
+                    }
+                }
+
+                if type == .league {
+                    Section("Season") {
+                        Toggle("Set a start date", isOn: $hasStartDate)
+                        if hasStartDate {
+                            DatePicker("Start date", selection: $startDate, displayedComponents: .date)
+                        }
+                        Stepper("Games per week: \(gamesPerWeek)", value: $gamesPerWeek, in: 1...12)
+                        Toggle("Sport pattern league", isOn: $isSport)
+                    }
+                } else if type == .tournament {
+                    Section {
+                        Toggle("Sport pattern", isOn: $isSport)
+                    }
                 }
             }
             .navigationTitle(leagueName)
@@ -79,7 +109,7 @@ struct LeagueEditSheet: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Save") { save() }
+                    Button(type == .league ? "Save" : "Convert") { save() }
                 }
             }
             .onAppear {
@@ -94,17 +124,52 @@ struct LeagueEditSheet: View {
     }
 
     private func save() {
-        let league = existing ?? {
-            let new = LeagueEvent()
-            new.name = leagueName
-            new.kind = .league
-            context.insert(new)
-            return new
-        }()
-        league.startDate = hasStartDate ? startDate : nil
-        league.gamesPerWeek = gamesPerWeek
-        league.isSport = isSport
-        dismiss()
+        if type == .league {
+            let league = existing ?? findOrCreateEvent(leagueName, kind: .league)
+            league.startDate = hasStartDate ? startDate : nil
+            league.gamesPerWeek = gamesPerWeek
+            league.isSport = isSport
+            dismiss()
+        } else {
+            convert(to: type)
+            dismiss()
+            onConverted?()
+        }
+    }
+
+    /// Re-tag every week of this league to the new type and drop the league record.
+    private func convert(to newType: SessionType) {
+        let event: LeagueEvent? = newType == .tournament ? findOrCreateEvent(leagueName, kind: .tournament) : nil
+        event?.isSport = isSport
+        for session in weeks {
+            session.type = newType
+            session.needsTypeReview = false
+            switch newType {
+            case .tournament:
+                session.eventName = leagueName
+                session.leagueName = leagueName
+                session.leagueEvent = event
+            case .practice:
+                session.eventName = nil
+                session.leagueName = nil
+                session.leagueEvent = nil
+            case .league:
+                break
+            }
+        }
+        // Remove the now-orphaned league record so it stops showing as a league.
+        if let existing { context.delete(existing) }
+    }
+
+    private func findOrCreateEvent(_ name: String, kind: LeagueEventKind) -> LeagueEvent {
+        if let match = leagueEvents.first(where: { $0.kind == kind && $0.name.caseInsensitiveCompare(name) == .orderedSame }) {
+            return match
+        }
+        let event = LeagueEvent()
+        event.name = name
+        event.kind = kind
+        context.insert(event)
+        return event
     }
 }
 
@@ -113,6 +178,7 @@ struct LeagueEditSheet: View {
 struct LeagueDetailView: View {
     let leagueName: String
     @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
     @Query(sort: \Session.date, order: .reverse) private var allSessions: [Session]
     @Query private var leagueEvents: [LeagueEvent]
 
@@ -189,7 +255,7 @@ struct LeagueDetailView: View {
             }
         }
         .sheet(isPresented: $showingEdit) {
-            LeagueEditSheet(leagueName: leagueName, existing: event)
+            LeagueEditSheet(leagueName: leagueName, existing: event, onConverted: { dismiss() })
                 .presentationDetents([.medium])
         }
         .fullScreenCover(item: $bowlingSession) { session in
