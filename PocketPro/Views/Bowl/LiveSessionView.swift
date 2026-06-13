@@ -268,15 +268,15 @@ struct LiveSessionView: View {
             }
 
             if entryMode == .pinDeck, let rack = entry.rack {
-                // 2nd ball onward: the deck starts with every remaining pin standing
-                // and the bowler taps the ones knocked down (PRD change request).
+                // 2nd ball onward: the deck carries over the leave (those pins stay
+                // highlighted as standing) and the bowler taps the ones they knocked down.
                 let knockDown = entry.ballIndex >= 1
 
-                PinDeckView(available: rack, standingAfter: $standingSelection, selectsKnockedDown: knockDown)
+                PinDeckView(available: rack, standingAfter: $standingSelection)
                     .frame(maxWidth: 340, maxHeight: deckHeight)
                     .frame(maxWidth: .infinity)
 
-                Text(knockDown ? "Tap the pins you knocked down" : "Tap the pins left standing")
+                Text(knockDown ? "Tap the standing pins you knocked down" : "Tap the pins left standing")
                     .font(.system(size: 12))
                     .foregroundStyle(Theme.textMuted)
 

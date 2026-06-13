@@ -257,10 +257,9 @@ struct PinDeckView: View {
     /// Pins standing at the current rack before this ball is thrown.
     let available: PinSet
     /// Pins the bowler marked as still standing after the ball (subset of `available`).
+    /// Filled = standing, on every ball — the 2nd-ball deck is pre-seeded with the
+    /// leave standing, so the bowler taps the pins they knocked down to clear them.
     @Binding var standingAfter: PinSet
-    /// When true, tapping marks a pin as *knocked down* and knocked pins are the ones
-    /// highlighted (2nd-ball deck). When false, tapping marks pins *left standing*.
-    var selectsKnockedDown: Bool = false
     var pinSize: CGFloat = 48
 
     var body: some View {
@@ -284,10 +283,6 @@ struct PinDeckView: View {
     private func pinView(_ pin: Int) -> some View {
         let isAvailable = available.contains(pin)
         let isStanding = standingAfter.contains(pin)
-        // In knocked-down mode the highlighted pins are the ones tapped as knocked
-        // (available but no longer standing); otherwise they're the pins left standing.
-        let isHighlighted = selectsKnockedDown ? (isAvailable && !isStanding) : isStanding
-        let fillColor = selectsKnockedDown ? Theme.accent : Theme.textPrimary
 
         Button {
             guard isAvailable else { return }
@@ -295,12 +290,12 @@ struct PinDeckView: View {
         } label: {
             ZStack {
                 Circle()
-                    .fill(isHighlighted ? fillColor : Color.clear)
+                    .fill(isStanding ? Theme.textPrimary : Color.clear)
                 Circle()
-                    .strokeBorder(isHighlighted ? fillColor : Theme.textMuted, lineWidth: 2)
+                    .strokeBorder(isStanding ? Theme.textPrimary : Theme.textMuted, lineWidth: 2)
                 Text("\(pin)")
                     .font(.system(size: pinSize * 0.34, weight: .bold).monospacedDigit())
-                    .foregroundStyle(isHighlighted ? Theme.bgPrimary : Theme.textMuted)
+                    .foregroundStyle(isStanding ? Theme.bgPrimary : Theme.textMuted)
             }
             .frame(width: pinSize, height: pinSize)
             .opacity(isAvailable ? 1 : 0.25)
