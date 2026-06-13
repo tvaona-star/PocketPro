@@ -12,6 +12,9 @@ struct SessionsTabView: View {
 
     @State private var showingNewLeague = false
     @State private var showArchived = false
+    @State private var leaguesExpanded = true
+    @State private var tournamentsExpanded = true
+    @State private var practiceExpanded = true
     @State private var deleteLeagueCandidate: String?
 
     private var importReviewCount: Int {
@@ -63,14 +66,32 @@ struct SessionsTabView: View {
     private var leagues: [LeagueGroup] { groupLeagues(includeArchived: false) }
     private var archivedLeagues: [LeagueGroup] { groupLeagues(includeArchived: true) }
 
-    private var otherSessions: [Session] {
-        allSessions.filter { !$0.isActive && $0.type != .league }
+    /// Non-archived tournament sessions, newest first.
+    private var tournamentSessions: [Session] {
+        allSessions.filter { !$0.isActive && !$0.isArchived && $0.type == .tournament }
+    }
+
+    /// Non-archived practice sessions, newest first.
+    private var practiceSessions: [Session] {
+        allSessions.filter { !$0.isActive && !$0.isArchived && $0.type == .practice }
+    }
+
+    /// Archived one-off sessions (tournament/practice) — leagues archive by name
+    /// in `archivedLeagues`, so they're excluded here.
+    private var archivedSessions: [Session] {
+        allSessions.filter { !$0.isActive && $0.isArchived && $0.type != .league }
+    }
+
+    /// True when there's nothing at all to show — drives the empty state.
+    private var hasAnySessions: Bool {
+        !leagues.isEmpty || !tournamentSessions.isEmpty || !practiceSessions.isEmpty
+            || !archivedLeagues.isEmpty || !archivedSessions.isEmpty
     }
 
     var body: some View {
         NavigationStack {
             Group {
-                if leagues.isEmpty && otherSessions.isEmpty {
+                if !hasAnySessions {
                     EmptyStateView(
                         icon: "list.bullet.rectangle",
                         title: "No sessions yet",
@@ -89,58 +110,45 @@ struct SessionsTabView: View {
                         }
 
                         if !leagues.isEmpty {
-                            Section("Leagues") {
-                                ForEach(leagues) { group in
-                                    ZStack {
-                                        NavigationLink {
-                                            LeagueDetailView(leagueName: group.name)
-                                        } label: { EmptyView() }
-                                        .opacity(0)
-                                        leagueRow(group)
-                                    }
-                                    .listRowBackground(Color.clear)
-                                    .listRowSeparator(.hidden)
-                                    .listRowInsets(EdgeInsets(top: 5, leading: 16, bottom: 5, trailing: 16))
-                                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                        Button(role: .destructive) {
-                                            deleteLeagueCandidate = group.name
-                                        } label: { Label("Delete", systemImage: "trash") }
-                                        Button {
-                                            setArchived(group.name, true)
-                                        } label: { Label("Archive", systemImage: "archivebox") }
-                                        .tint(Theme.warning)
+                            Section {
+                                sectionHeaderRow("Leagues", count: leagues.count, isExpanded: $leaguesExpanded)
+                                if leaguesExpanded {
+                                    ForEach(leagues) { group in
+                                        leagueNavRow(group, archived: false)
                                     }
                                 }
                             }
                         }
 
-                        if !otherSessions.isEmpty {
-                            Section("Tournaments & Practice") {
-                                ForEach(otherSessions) { session in
-                                    ZStack {
-                                        NavigationLink {
-                                            SessionDetailView(session: session)
-                                        } label: { EmptyView() }
-                                        .opacity(0)
-                                        SessionCard(session: session, arsenal: arsenal)
+                        if !tournamentSessions.isEmpty {
+                            Section {
+                                sectionHeaderRow("Tournaments", count: tournamentSessions.count, isExpanded: $tournamentsExpanded)
+                                if tournamentsExpanded {
+                                    ForEach(tournamentSessions) { session in
+                                        sessionNavRow(session, archived: false)
                                     }
-                                    .listRowBackground(Color.clear)
-                                    .listRowSeparator(.hidden)
-                                    .listRowInsets(EdgeInsets(top: 5, leading: 16, bottom: 5, trailing: 16))
-                                }
-                                .onDelete { offsets in
-                                    for index in offsets { context.delete(otherSessions[index]) }
                                 }
                             }
                         }
 
-                        if !archivedLeagues.isEmpty {
+                        if !practiceSessions.isEmpty {
+                            Section {
+                                sectionHeaderRow("Practice", count: practiceSessions.count, isExpanded: $practiceExpanded)
+                                if practiceExpanded {
+                                    ForEach(practiceSessions) { session in
+                                        sessionNavRow(session, archived: false)
+                                    }
+                                }
+                            }
+                        }
+
+                        if !archivedLeagues.isEmpty || !archivedSessions.isEmpty {
                             Section {
                                 Button {
                                     withAnimation(Theme.sectionSpring) { showArchived.toggle() }
                                 } label: {
                                     HStack {
-                                        Label("Archived leagues (\(archivedLeagues.count))", systemImage: "archivebox")
+                                        Label("Archived (\(archivedLeagues.count + archivedSessions.count))", systemImage: "archivebox")
                                             .font(.system(size: 14, weight: .medium))
                                             .foregroundStyle(Theme.textSecondary)
                                         Spacer()
@@ -155,25 +163,10 @@ struct SessionsTabView: View {
 
                                 if showArchived {
                                     ForEach(archivedLeagues) { group in
-                                        ZStack {
-                                            NavigationLink {
-                                                LeagueDetailView(leagueName: group.name)
-                                            } label: { EmptyView() }
-                                            .opacity(0)
-                                            leagueRow(group)
-                                        }
-                                        .listRowBackground(Color.clear)
-                                        .listRowSeparator(.hidden)
-                                        .listRowInsets(EdgeInsets(top: 5, leading: 16, bottom: 5, trailing: 16))
-                                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                            Button(role: .destructive) {
-                                                deleteLeagueCandidate = group.name
-                                            } label: { Label("Delete", systemImage: "trash") }
-                                            Button {
-                                                setArchived(group.name, false)
-                                            } label: { Label("Unarchive", systemImage: "arrow.uturn.up") }
-                                            .tint(Theme.accent)
-                                        }
+                                        leagueNavRow(group, archived: true)
+                                    }
+                                    ForEach(archivedSessions) { session in
+                                        sessionNavRow(session, archived: true)
                                     }
                                 }
                             }
@@ -240,6 +233,90 @@ struct SessionsTabView: View {
         }
         for event in leagueEvents where event.kind == .league && event.name.lowercased() == key {
             context.delete(event)
+        }
+    }
+
+    /// Tappable section header used by Leagues / Tournaments / Practice.
+    private func sectionHeaderRow(_ title: String, count: Int, isExpanded: Binding<Bool>) -> some View {
+        Button {
+            withAnimation(Theme.sectionSpring) { isExpanded.wrappedValue.toggle() }
+        } label: {
+            HStack(spacing: 6) {
+                Text(title.uppercased())
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Theme.textSecondary)
+                Text("\(count)")
+                    .font(.system(size: 12, weight: .semibold).monospacedDigit())
+                    .foregroundStyle(Theme.textMuted)
+                Spacer()
+                Image(systemName: isExpanded.wrappedValue ? "chevron.down" : "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Theme.textMuted)
+            }
+        }
+        .buttonStyle(.plain)
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
+        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 2, trailing: 16))
+    }
+
+    /// A league group row with navigation and archive/delete (or unarchive) swipes.
+    private func leagueNavRow(_ group: LeagueGroup, archived: Bool) -> some View {
+        ZStack {
+            NavigationLink {
+                LeagueDetailView(leagueName: group.name)
+            } label: { EmptyView() }
+            .opacity(0)
+            leagueRow(group)
+        }
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
+        .listRowInsets(EdgeInsets(top: 5, leading: 16, bottom: 5, trailing: 16))
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            Button(role: .destructive) {
+                deleteLeagueCandidate = group.name
+            } label: { Label("Delete", systemImage: "trash") }
+            if archived {
+                Button {
+                    setArchived(group.name, false)
+                } label: { Label("Unarchive", systemImage: "arrow.uturn.up") }
+                .tint(Theme.accent)
+            } else {
+                Button {
+                    setArchived(group.name, true)
+                } label: { Label("Archive", systemImage: "archivebox") }
+                .tint(Theme.warning)
+            }
+        }
+    }
+
+    /// A single session row with navigation and archive/delete (or unarchive) swipes.
+    private func sessionNavRow(_ session: Session, archived: Bool) -> some View {
+        ZStack {
+            NavigationLink {
+                SessionDetailView(session: session)
+            } label: { EmptyView() }
+            .opacity(0)
+            SessionCard(session: session, arsenal: arsenal)
+        }
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
+        .listRowInsets(EdgeInsets(top: 5, leading: 16, bottom: 5, trailing: 16))
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            Button(role: .destructive) {
+                context.delete(session)
+            } label: { Label("Delete", systemImage: "trash") }
+            if archived {
+                Button {
+                    session.isArchived = false
+                } label: { Label("Unarchive", systemImage: "arrow.uturn.up") }
+                .tint(Theme.accent)
+            } else {
+                Button {
+                    session.isArchived = true
+                } label: { Label("Archive", systemImage: "archivebox") }
+                .tint(Theme.warning)
+            }
         }
     }
 

@@ -95,6 +95,8 @@ final class Session {
     var createdAt: Date = Date()
     /// True while the Bowl tab has this session live.
     var isActive: Bool = false
+    /// Hidden from the Sessions tab but still counted in Stats (PRD 5.2).
+    var isArchived: Bool = false
 
     var location: Location?
     var pattern: Pattern?
