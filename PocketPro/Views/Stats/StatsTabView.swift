@@ -19,8 +19,12 @@ struct StatsTabView: View {
     @State private var customFrom = Calendar.current.date(byAdding: .month, value: -1, to: Date()) ?? Date()
     @State private var customTo = Date()
     @State private var showingCustomRange = false
-    @State private var ballFilter: UUID?
-    @State private var patternFilter: UUID?
+    /// Multi-select ball / pattern condition filters (empty = all).
+    @State private var ballFilter: Set<UUID> = []
+    @State private var patternFilter: Set<UUID> = []
+    @State private var showingBallPicker = false
+    @State private var showingPatternPicker = false
+    @State private var showingCompare = false
 
     /// Minimum games before stats display (PRD 7.4).
     private let statThreshold = 5
@@ -68,8 +72,10 @@ struct StatsTabView: View {
             }
             .flatMap { $0.gameRecords() }
             .filter { game in
-                if let ballFilter, !game.ballIDs.contains(ballFilter) { return false }
-                if let patternFilter, game.patternID != patternFilter { return false }
+                if !ballFilter.isEmpty && ballFilter.isDisjoint(with: Set(game.ballIDs)) { return false }
+                if !patternFilter.isEmpty {
+                    guard let id = game.patternID, patternFilter.contains(id) else { return false }
+                }
                 return true
             }
     }
@@ -114,6 +120,27 @@ struct StatsTabView: View {
         return Array(byID.values).sorted { $0.name < $1.name }
     }
 
+    private func patternLabel(_ pattern: Pattern) -> String {
+        pattern.name.isEmpty ? pattern.summary : pattern.name
+    }
+
+    private var ballFilterLabel: String {
+        if ballFilter.isEmpty { return "Ball" }
+        if ballFilter.count == 1, let id = ballFilter.first {
+            return arsenal.first { $0.id == id }?.displayName ?? "1 ball"
+        }
+        return "\(ballFilter.count) balls"
+    }
+
+    private var patternFilterLabel: String {
+        if patternFilter.isEmpty { return "Pattern" }
+        if patternFilter.count == 1, let id = patternFilter.first,
+           let pattern = patterns.first(where: { $0.id == id }) {
+            return patternLabel(pattern)
+        }
+        return "\(patternFilter.count) patterns"
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -152,6 +179,13 @@ struct StatsTabView: View {
             .background(Theme.bgPrimary)
             .navigationTitle("Stats")
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        showingCompare = true
+                    } label: {
+                        Label("Compare", systemImage: "chart.bar.xaxis")
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     SettingsToolbarLink()
                 }
@@ -164,11 +198,30 @@ struct StatsTabView: View {
                 LeagueFilterSheet(leagues: activeLeagueNames, tournaments: tournamentNames, archivedLeagues: archivedLeagueNames, selection: $leagueFilter)
                     .presentationDetents([.medium, .large])
             }
+            .sheet(isPresented: $showingBallPicker) {
+                IDFilterSheet(
+                    title: "Filter by Ball",
+                    options: arsenal.map { FilterOption(id: $0.id, label: $0.displayName) },
+                    selection: $ballFilter
+                )
+                .presentationDetents([.medium, .large])
+            }
+            .sheet(isPresented: $showingPatternPicker) {
+                IDFilterSheet(
+                    title: "Filter by Pattern",
+                    options: patterns.map { FilterOption(id: $0.id, label: patternLabel($0)) },
+                    selection: $patternFilter
+                )
+                .presentationDetents([.medium, .large])
+            }
+            .sheet(isPresented: $showingCompare) {
+                StatsCompareView()
+            }
         }
     }
 
     private var conditionActive: Bool {
-        ballFilter != nil || patternFilter != nil
+        !ballFilter.isEmpty || !patternFilter.isEmpty
     }
 
     // MARK: - Filters
@@ -209,33 +262,19 @@ struct StatsTabView: View {
                     filterPill(icon: "calendar", label: dateRange.displayName, active: dateRange != .allTime)
                 }
 
-                Menu {
-                    Button("Any ball") { ballFilter = nil }
-                    ForEach(arsenal) { ball in
-                        Button(ball.displayName) { ballFilter = ball.id }
-                    }
+                Button {
+                    showingBallPicker = true
                 } label: {
-                    filterPill(
-                        icon: "circle.grid.3x3",
-                        label: ballFilter.flatMap { id in arsenal.first { $0.id == id }?.displayName } ?? "Ball",
-                        active: ballFilter != nil
-                    )
+                    filterPill(icon: "circle.grid.3x3", label: ballFilterLabel, active: !ballFilter.isEmpty)
                 }
+                .buttonStyle(.plain)
 
-                Menu {
-                    Button("Any pattern") { patternFilter = nil }
-                    ForEach(patterns) { pattern in
-                        Button(pattern.name.isEmpty ? pattern.summary : pattern.name) {
-                            patternFilter = pattern.id
-                        }
-                    }
+                Button {
+                    showingPatternPicker = true
                 } label: {
-                    filterPill(
-                        icon: "drop",
-                        label: patternFilter != nil ? "Pattern ✓" : "Pattern",
-                        active: patternFilter != nil
-                    )
+                    filterPill(icon: "drop", label: patternFilterLabel, active: !patternFilter.isEmpty)
                 }
+                .buttonStyle(.plain)
                 Spacer()
             }
         }
@@ -265,8 +304,8 @@ struct StatsTabView: View {
                 .foregroundStyle(Theme.textPrimary)
             Spacer()
             Button("Clear") {
-                ballFilter = nil
-                patternFilter = nil
+                ballFilter = []
+                patternFilter = []
             }
             .font(.system(size: 13, weight: .semibold))
             .foregroundStyle(Theme.accent)
@@ -276,12 +315,8 @@ struct StatsTabView: View {
 
     private var conditionDescription: String {
         var parts: [String] = []
-        if let ballFilter, let ball = arsenal.first(where: { $0.id == ballFilter }) {
-            parts.append(ball.displayName)
-        }
-        if let patternFilter, let pattern = patterns.first(where: { $0.id == patternFilter }) {
-            parts.append(pattern.name.isEmpty ? pattern.summary : pattern.name)
-        }
+        if !ballFilter.isEmpty { parts.append(ballFilterLabel) }
+        if !patternFilter.isEmpty { parts.append(patternFilterLabel) }
         return "Condition: " + parts.joined(separator: " on ")
     }
 
@@ -390,5 +425,193 @@ struct LeagueFilterSheet: View {
                 }
             }
         }
+    }
+}
+
+/// One selectable row for the generic multi-select filter sheet.
+struct FilterOption: Identifiable {
+    let id: UUID
+    let label: String
+}
+
+/// Generic multi-select filter sheet keyed by UUID (balls, patterns).
+struct IDFilterSheet: View {
+    let title: String
+    let options: [FilterOption]
+    @Binding var selection: Set<UUID>
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if !selection.isEmpty {
+                    Button("Clear selection", role: .destructive) { selection.removeAll() }
+                }
+                if options.isEmpty {
+                    Text("Nothing to filter yet.")
+                        .foregroundStyle(Theme.textMuted)
+                } else {
+                    ForEach(options) { option in
+                        Button {
+                            if selection.contains(option.id) {
+                                selection.remove(option.id)
+                            } else {
+                                selection.insert(option.id)
+                            }
+                        } label: {
+                            HStack {
+                                Text(option.label).foregroundStyle(Theme.textPrimary)
+                                Spacer()
+                                if selection.contains(option.id) {
+                                    Image(systemName: "checkmark").foregroundStyle(Theme.accent)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } }
+            }
+        }
+    }
+}
+
+// MARK: - Average comparison (PRD 5.3: compare leagues or seasons side by side)
+
+/// Compares averages across leagues/tournaments or across USBC seasons.
+struct StatsCompareView: View {
+    @Query(sort: \Session.date, order: .reverse) private var allSessions: [Session]
+    @Environment(\.dismiss) private var dismiss
+
+    enum Dimension: String, CaseIterable, Identifiable {
+        case league = "Leagues"
+        case season = "Seasons"
+        var id: String { rawValue }
+    }
+
+    @State private var dimension: Dimension = .league
+
+    private struct Group: Identifiable {
+        let id = UUID()
+        let label: String
+        let average: Double
+        let games: Int
+        let high: Int
+    }
+
+    private var groups: [Group] {
+        var buckets: [String: [Int]] = [:]
+        var order: [String] = []
+        for session in allSessions where !session.isActive {
+            let key: String
+            switch dimension {
+            case .league:
+                guard let name = session.leagueName ?? session.eventName, !name.isEmpty else { continue }
+                key = name
+            case .season:
+                key = Self.usbcSeasonLabel(for: session.date)
+            }
+            let scores = session.gameRecords().map { $0.finalScore }.filter { $0 > 0 }
+            guard !scores.isEmpty else { continue }
+            if buckets[key] == nil { order.append(key) }
+            buckets[key, default: []].append(contentsOf: scores)
+        }
+        let result = order.compactMap { key -> Group? in
+            guard let scores = buckets[key], !scores.isEmpty else { return nil }
+            let avg = Double(scores.reduce(0, +)) / Double(scores.count)
+            return Group(label: key, average: avg, games: scores.count, high: scores.max() ?? 0)
+        }
+        return result.sorted { $0.average > $1.average }
+    }
+
+    private var maxAverage: Double {
+        groups.map { $0.average }.max() ?? 1
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    Picker("Compare", selection: $dimension) {
+                        ForEach(Dimension.allCases) { Text($0.rawValue).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+
+                    if groups.isEmpty {
+                        Text("Not enough data to compare yet.")
+                            .font(Theme.cardSubtitle)
+                            .foregroundStyle(Theme.textMuted)
+                            .frame(maxWidth: .infinity, alignment: .center)
+                            .padding(.top, 40)
+                    } else {
+                        ForEach(groups) { group in
+                            compareRow(group)
+                        }
+                        if dimension == .league && groups.count >= 2 {
+                            spreadNote
+                        }
+                    }
+                }
+                .padding()
+            }
+            .background(Theme.bgPrimary)
+            .navigationTitle("Compare Averages")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } }
+            }
+        }
+    }
+
+    private func compareRow(_ group: Group) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(group.label)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Theme.textPrimary)
+                    .lineLimit(1)
+                Spacer()
+                Text(Notation.oneDecimal(group.average))
+                    .font(.system(size: 18, weight: .bold).monospacedDigit())
+                    .foregroundStyle(Theme.accent)
+            }
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(Theme.bgElevated)
+                        .frame(height: 8)
+                    Capsule()
+                        .fill(Theme.accent)
+                        .frame(width: geo.size.width * CGFloat(group.average / maxAverage), height: 8)
+                }
+            }
+            .frame(height: 8)
+            Text("\(group.games) game\(group.games == 1 ? "" : "s") · high \(group.high)")
+                .font(.system(size: 12))
+                .foregroundStyle(Theme.textSecondary)
+        }
+        .card()
+    }
+
+    private var spreadNote: some View {
+        let avgs = groups.map { $0.average }
+        let spread = (avgs.max() ?? 0) - (avgs.min() ?? 0)
+        return Text("Spread between highest and lowest average: \(Notation.oneDecimal(spread)) pins.")
+            .font(.system(size: 12))
+            .foregroundStyle(Theme.textMuted)
+            .frame(maxWidth: .infinity, alignment: .center)
+    }
+
+    /// USBC season label (Aug–Jul) for a date, e.g. "2024–25".
+    static func usbcSeasonLabel(for date: Date, calendar: Calendar = .current) -> String {
+        let comps = calendar.dateComponents([.year, .month], from: date)
+        let year = comps.year ?? 0
+        let month = comps.month ?? 1
+        let startYear = month >= 8 ? year : year - 1
+        let endTwo = String(format: "%02d", (startYear + 1) % 100)
+        return "\(startYear)–\(endTwo)"
     }
 }
