@@ -195,10 +195,10 @@ public enum StatsEngine {
             }
 
             for leave in game.leaves {
-                let isSplit = leave.categories.contains(.split)
-                if isSplit {
-                    splitLeaves += 1
-                } else if leave.hadOpportunity {
+                if leave.categories.contains(.split) { splitLeaves += 1 }
+                // Spare % counts every leave you had a shot at — splits included — so
+                // it matches the Spare Breakdown total and standard spare conversion.
+                if leave.hadOpportunity {
                     spareAttempts += 1
                     if leave.converted { spareMakes += 1 }
                 }

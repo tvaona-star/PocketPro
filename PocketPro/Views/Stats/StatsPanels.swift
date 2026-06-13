@@ -206,6 +206,9 @@ struct StrikeClustersPanel: View {
     private var firstBall: String {
         stats.firstBallAverage.map { Notation.oneDecimal($0) } ?? "--"
     }
+    private var doublePct: String {
+        stats.doublesPercent.map { String(format: "%.0f%%", $0) } ?? "--"
+    }
     private var totalClusters: Int {
         stats.streakCounts.values.reduce(0, +)
     }
@@ -215,8 +218,9 @@ struct StrikeClustersPanel: View {
             Text("1st ball \(firstBall) · \(totalClusters) cluster\(totalClusters == 1 ? "" : "s")")
         } content: {
             VStack(alignment: .leading, spacing: 12) {
-                HStack {
+                HStack(spacing: 10) {
                     miniTile("1st Ball Avg", firstBall)
+                    miniTile("Double %", doublePct)
                     Spacer()
                 }
 
@@ -278,6 +282,7 @@ struct SessionAveragesTable: View {
     let leagueEvents: [LeagueEvent]
     let rangeStart: Date?
     let rangeEnd: Date?
+    @State private var isExpanded = true
 
     /// Names marked as sport-pattern — matched by name so it covers sessions
     /// linked to a league only by name (e.g. imported PinPal weeks).
@@ -292,7 +297,7 @@ struct SessionAveragesTable: View {
         var id: String { label }
     }
 
-    /// League, Tournament, Sport League, Sport Tournament — no Practice.
+    /// Row 1: house League / Tournament. Row 2: Sport League / Sport Tournament.
     private let categories: [Category] = [
         Category(label: "League", type: .league, sport: false),
         Category(label: "Tournament", type: .tournament, sport: false),
@@ -300,30 +305,45 @@ struct SessionAveragesTable: View {
         Category(label: "Sport Tournament", type: .tournament, sport: true),
     ]
 
+    private let columns = [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)]
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Averages by Type")
-                .font(Theme.cardTitle)
-                .foregroundStyle(Theme.textPrimary)
-            ForEach(categories) { category in
-                HStack {
-                    Text(category.label)
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(Theme.textSecondary)
-                    Spacer()
-                    let result = average(for: category)
-                    Text(result.value)
-                        .font(.system(size: 17, weight: .bold).monospacedDigit())
-                        .foregroundStyle(result.games > 0 ? Theme.textPrimary : Theme.textMuted)
-                    Text(result.games > 0 ? "(\(result.games))" : "")
-                        .font(.system(size: 11).monospacedDigit())
-                        .foregroundStyle(Theme.textMuted)
-                        .frame(width: 44, alignment: .leading)
-                }
-                .padding(.vertical, 2)
+        SectionCard(title: "Averages by Type", isExpanded: $isExpanded) {
+            Text(previewText)
+        } content: {
+            LazyVGrid(columns: columns, spacing: 10) {
+                ForEach(categories) { box($0) }
             }
         }
-        .card()
+    }
+
+    private var previewText: String {
+        let league = average(for: categories[0])
+        return league.games > 0 ? "League avg \(league.value)" : "League · Tournament · Sport"
+    }
+
+    private func box(_ category: Category) -> some View {
+        let result = average(for: category)
+        return VStack(alignment: .leading, spacing: 3) {
+            Text(category.label.uppercased())
+                .font(Theme.statLabel)
+                .foregroundStyle(Theme.textSecondary)
+                .lineLimit(1)
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Text(result.value)
+                    .font(Theme.statNumber(22))
+                    .foregroundStyle(result.games > 0 ? Theme.textPrimary : Theme.textMuted)
+                if result.games > 0 {
+                    Text("(\(result.games))")
+                        .font(.system(size: 11).monospacedDigit())
+                        .foregroundStyle(Theme.textMuted)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(Theme.bgElevated)
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
     private func average(for category: Category) -> (value: String, games: Int) {

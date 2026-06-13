@@ -25,6 +25,14 @@ struct StatsTabView: View {
     @State private var showingBallPicker = false
     @State private var showingPatternPicker = false
     @State private var showingCompare = false
+    @State private var conditionFilter: PatternCondition = .all
+
+    enum PatternCondition: String, CaseIterable, Identifiable {
+        case all = "All"
+        case house = "House"
+        case sport = "Sport"
+        var id: String { rawValue }
+    }
 
     /// Minimum games before stats display (PRD 7.4).
     private let statThreshold = 5
@@ -57,14 +65,26 @@ struct StatsTabView: View {
         return Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: customTo))
     }
 
+    /// League/tournament names flagged as sport-pattern (matched by name, like the
+    /// averages table) — drives the House/Sport condition filter.
+    private var sportNames: Set<String> {
+        Set(leagueEvents.filter { $0.isSport }.map { $0.name.lowercased() })
+    }
+
     private var games: [GameRecord] {
-        allSessions
+        let sport = sportNames
+        return allSessions
             .filter { session in
                 if session.isActive { return false }
                 if let typeFilter, session.type != typeFilter { return false }
                 if !leagueFilter.isEmpty {
                     let name = (session.leagueName ?? session.eventName ?? "").lowercased()
                     if !leagueFilter.contains(name) { return false }
+                }
+                if conditionFilter != .all {
+                    let name = (session.leagueName ?? session.eventName ?? "").lowercased()
+                    let isSport = sport.contains(name)
+                    if (conditionFilter == .sport) != isSport { return false }
                 }
                 if let start = rangeStart, session.date < start { return false }
                 if let end = rangeEnd, session.date > end { return false }
@@ -248,34 +268,44 @@ struct StatsTabView: View {
                 }
             }
 
-            HStack(spacing: 8) {
-                Menu {
-                    ForEach(StatDateRange.allCases) { range in
-                        Button(range.displayName) {
-                            if range == .custom {
-                                showingCustomRange = true
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    Menu {
+                        ForEach(StatDateRange.allCases) { range in
+                            Button(range.displayName) {
+                                if range == .custom {
+                                    showingCustomRange = true
+                                }
+                                dateRange = range
                             }
-                            dateRange = range
                         }
+                    } label: {
+                        filterPill(icon: "calendar", label: dateRange.displayName, active: dateRange != .allTime)
                     }
-                } label: {
-                    filterPill(icon: "calendar", label: dateRange.displayName, active: dateRange != .allTime)
-                }
 
-                Button {
-                    showingBallPicker = true
-                } label: {
-                    filterPill(icon: "circle.grid.3x3", label: ballFilterLabel, active: !ballFilter.isEmpty)
-                }
-                .buttonStyle(.plain)
+                    Button {
+                        showingBallPicker = true
+                    } label: {
+                        filterPill(icon: "circle.grid.3x3", label: ballFilterLabel, active: !ballFilter.isEmpty)
+                    }
+                    .buttonStyle(.plain)
 
-                Button {
-                    showingPatternPicker = true
-                } label: {
-                    filterPill(icon: "drop", label: patternFilterLabel, active: !patternFilter.isEmpty)
+                    Button {
+                        showingPatternPicker = true
+                    } label: {
+                        filterPill(icon: "drop", label: patternFilterLabel, active: !patternFilter.isEmpty)
+                    }
+                    .buttonStyle(.plain)
+
+                    Menu {
+                        ForEach(PatternCondition.allCases) { condition in
+                            Button(condition.rawValue) { conditionFilter = condition }
+                        }
+                    } label: {
+                        filterPill(icon: "road.lanes", label: conditionFilter == .all ? "House/Sport" : conditionFilter.rawValue, active: conditionFilter != .all)
+                    }
                 }
-                .buttonStyle(.plain)
-                Spacer()
+                .padding(.trailing, 4)
             }
         }
     }

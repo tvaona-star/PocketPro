@@ -42,8 +42,8 @@ final class StatsEngineTests: XCTestCase {
         XCTAssertEqual(stats.strikePercent.map { round($0 * 10) / 10 }, round(5.0 / 11.0 * 1000) / 10)
         // Splits: 4-5 and 7-10 → 2 of 11 fresh racks.
         XCTAssertEqual(stats.splitPercent.map { round($0 * 10) / 10 }, round(2.0 / 11.0 * 1000) / 10)
-        // Spare attempts exclude splits: 3, 10, 2-8, 3-9 → 3 converted of 4.
-        XCTAssertEqual(stats.sparePercent, 75.0)
+        // Spare % counts every leave with a shot, splits included: 3 converted of 6.
+        XCTAssertEqual(stats.sparePercent, 50.0)
         XCTAssertEqual(stats.openFramePercent, 30.0)
         XCTAssertEqual(stats.cleanGamePercent, 0.0)
         XCTAssertEqual(stats.doublesPercent, 40.0)
