@@ -27,7 +27,33 @@ struct RootView: View {
         .background(Theme.bgPrimary)
         .task {
             ballDB.backfillImagesIfNeeded(context: context)
+            backfillUntitledSessions()
         }
+    }
+
+    /// Self-heal any league/tournament session that lost its name (it would otherwise
+    /// be skipped by the Sessions grouping and disappear). Idempotent.
+    private func backfillUntitledSessions() {
+        guard let sessions = try? context.fetch(FetchDescriptor<Session>()) else { return }
+        var changed = false
+        for session in sessions {
+            switch session.type {
+            case .league:
+                if (session.leagueName ?? "").trimmingCharacters(in: .whitespaces).isEmpty {
+                    session.leagueName = "Untitled League"
+                    changed = true
+                }
+            case .tournament:
+                if (session.eventName ?? session.leagueName ?? "").trimmingCharacters(in: .whitespaces).isEmpty {
+                    session.eventName = "Untitled Tournament"
+                    session.leagueName = "Untitled Tournament"
+                    changed = true
+                }
+            case .practice:
+                break
+            }
+        }
+        if changed { try? context.save() }
     }
 }
 

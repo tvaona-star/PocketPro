@@ -70,6 +70,15 @@ struct SessionSetupSheet: View {
         }
     }
 
+    /// A league/tournament must be named before it can start, so it never goes
+    /// nameless and vanishes from the Sessions tab.
+    private var canStart: Bool {
+        if type == .league || type == .tournament {
+            return !name.trimmingCharacters(in: .whitespaces).isEmpty
+        }
+        return true
+    }
+
     /// Already-created leagues/tournaments of the selected kind, newest first —
     /// tap one to bowl under it.
     private var recentNames: [String] {
@@ -97,7 +106,7 @@ struct SessionSetupSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    SheetHeader(title: "New Session") {
+                    SheetHeader(title: "New Session", trailing: "Start", trailingDisabled: !canStart) {
                         startSession()
                     }
 
@@ -115,6 +124,11 @@ struct SessionSetupSheet: View {
                                 .foregroundStyle(Theme.textSecondary)
                             TextField(type == .league ? "e.g. Tuesday Classic" : "e.g. City Open", text: $name)
                                 .textFieldStyle(.roundedBorder)
+                            if name.trimmingCharacters(in: .whitespaces).isEmpty {
+                                Text("A \(type == .league ? "league" : "tournament") needs a name to start.")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(Theme.textMuted)
+                            }
                             if !recentNames.isEmpty {
                                 ScrollView(.horizontal, showsIndicators: false) {
                                     HStack(spacing: 8) {
@@ -270,17 +284,20 @@ struct SessionSetupSheet: View {
         session.date = Date()
 
         // Link (or create) the league/tournament record, and mirror its name into
-        // the display caches the rest of the UI already reads.
-        if let kind = selectedKind, !name.isEmpty {
+        // the display caches the rest of the UI already reads. A league/tournament is
+        // always named (falling back to Untitled) so it never vanishes from Sessions.
+        if let kind = selectedKind {
+            let trimmed = name.trimmingCharacters(in: .whitespaces)
+            let finalName = trimmed.isEmpty ? (kind == .league ? "Untitled League" : "Untitled Tournament") : trimmed
             let event = leagueEvents.first {
-                $0.kind == kind && $0.name.caseInsensitiveCompare(name) == .orderedSame
-            } ?? newLeagueEvent(name: name, kind: kind)
+                $0.kind == kind && $0.name.caseInsensitiveCompare(finalName) == .orderedSame
+            } ?? newLeagueEvent(name: finalName, kind: kind)
             session.leagueEvent = event
             if kind == .league {
-                session.leagueName = name
+                session.leagueName = finalName
             } else {
-                session.eventName = name
-                session.leagueName = name
+                session.eventName = finalName
+                session.leagueName = finalName
             }
         }
         if !locationName.isEmpty {
