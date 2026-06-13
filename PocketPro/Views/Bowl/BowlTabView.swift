@@ -51,6 +51,7 @@ struct SessionSetupSheet: View {
     @Query(sort: \Pattern.createdAt, order: .reverse) private var patterns: [Pattern]
     @Query private var locations: [Location]
     @Query(sort: \LeagueEvent.createdAt, order: .reverse) private var leagueEvents: [LeagueEvent]
+    @Query(sort: \Bag.createdAt, order: .reverse) private var bags: [Bag]
 
     @State private var type: SessionType = .league
     @State private var name = ""
@@ -58,6 +59,7 @@ struct SessionSetupSheet: View {
     @State private var selectedPattern: Pattern?
     @State private var showingPatternPicker = false
     @State private var selectedBallIDs: Set<UUID> = []
+    @State private var ballsExpanded = false
 
     /// The LeagueEvent kind matching the current session type (nil for practice).
     private var selectedKind: LeagueEventKind? {
@@ -78,15 +80,17 @@ struct SessionSetupSheet: View {
             .filter { !$0.isEmpty }
     }
 
-    private var recentLocations: [String] {
-        var seen: [String] = []
+    /// Locations ordered by how often they've been bowled (most-used first).
+    private var locationsByUsage: [String] {
+        var counts: [String: Int] = [:]
         for session in pastSessions {
-            if let name = session.location?.name, !name.isEmpty, !seen.contains(name) {
-                seen.append(name)
-            }
-            if seen.count >= 4 { break }
+            if let name = session.location?.name, !name.isEmpty { counts[name, default: 0] += 1 }
         }
-        return seen
+        return counts.keys.sorted { (counts[$0] ?? 0) > (counts[$1] ?? 0) }
+    }
+
+    private func ballIDs(in bag: Bag) -> Set<UUID> {
+        Set(bag.defaultVariation?.sortedSlots.map { $0.ballID } ?? [])
     }
 
     var body: some View {
@@ -129,16 +133,18 @@ struct SessionSetupSheet: View {
                         Text("LOCATION")
                             .font(Theme.statLabel)
                             .foregroundStyle(Theme.textSecondary)
-                        TextField("Bowling center (optional)", text: $locationName)
-                            .textFieldStyle(.roundedBorder)
-                        if !recentLocations.isEmpty {
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 8) {
-                                    ForEach(recentLocations, id: \.self) { recent in
-                                        FilterChip(label: recent, isActive: locationName == recent) {
-                                            locationName = recent
-                                        }
+                        HStack(spacing: 8) {
+                            TextField("Bowling center (optional)", text: $locationName)
+                                .textFieldStyle(.roundedBorder)
+                            if !locationsByUsage.isEmpty {
+                                Menu {
+                                    ForEach(locationsByUsage, id: \.self) { loc in
+                                        Button(loc) { locationName = loc }
                                     }
+                                } label: {
+                                    Image(systemName: "chevron.down.circle.fill")
+                                        .font(.system(size: 24))
+                                        .foregroundStyle(Theme.accent)
                                 }
                             }
                         }
@@ -175,28 +181,61 @@ struct SessionSetupSheet: View {
 
                     if !arsenal.isEmpty {
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("BALLS IN BAG TODAY")
-                                .font(Theme.statLabel)
-                                .foregroundStyle(Theme.textSecondary)
-                            ForEach(arsenal) { ball in
-                                Button {
-                                    if selectedBallIDs.contains(ball.id) {
-                                        selectedBallIDs.remove(ball.id)
-                                    } else {
-                                        selectedBallIDs.insert(ball.id)
+                            // Quick-fill the bag from an already-built bag.
+                            if !bags.isEmpty {
+                                Text("PICK A BAG")
+                                    .font(Theme.statLabel)
+                                    .foregroundStyle(Theme.textSecondary)
+                                ScrollView(.horizontal, showsIndicators: false) {
+                                    HStack(spacing: 8) {
+                                        ForEach(bags) { bag in
+                                            let bagIDs = ballIDs(in: bag)
+                                            FilterChip(label: bag.name.isEmpty ? bag.type.displayName : bag.name,
+                                                       isActive: !bagIDs.isEmpty && bagIDs == selectedBallIDs) {
+                                                selectedBallIDs = bagIDs
+                                                ballsExpanded = true
+                                            }
+                                        }
                                     }
-                                } label: {
-                                    HStack {
-                                        Image(systemName: selectedBallIDs.contains(ball.id) ? "checkmark.circle.fill" : "circle")
-                                            .foregroundStyle(selectedBallIDs.contains(ball.id) ? Theme.accent : Theme.textMuted)
-                                        Text(ball.displayName)
-                                            .foregroundStyle(Theme.textPrimary)
-                                        Spacer()
-                                        CoverstockBadge(type: ball.coverstockType)
-                                    }
-                                    .card(padding: 10)
                                 }
-                                .buttonStyle(.plain)
+                            }
+
+                            Button {
+                                withAnimation(Theme.sectionSpring) { ballsExpanded.toggle() }
+                            } label: {
+                                HStack {
+                                    Text("BALLS IN BAG TODAY\(selectedBallIDs.isEmpty ? "" : " (\(selectedBallIDs.count))")")
+                                        .font(Theme.statLabel)
+                                        .foregroundStyle(Theme.textSecondary)
+                                    Spacer()
+                                    Image(systemName: ballsExpanded ? "chevron.down" : "chevron.right")
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .foregroundStyle(Theme.textMuted)
+                                }
+                            }
+                            .buttonStyle(.plain)
+
+                            if ballsExpanded {
+                                ForEach(arsenal) { ball in
+                                    Button {
+                                        if selectedBallIDs.contains(ball.id) {
+                                            selectedBallIDs.remove(ball.id)
+                                        } else {
+                                            selectedBallIDs.insert(ball.id)
+                                        }
+                                    } label: {
+                                        HStack {
+                                            Image(systemName: selectedBallIDs.contains(ball.id) ? "checkmark.circle.fill" : "circle")
+                                                .foregroundStyle(selectedBallIDs.contains(ball.id) ? Theme.accent : Theme.textMuted)
+                                            Text(ball.displayName)
+                                                .foregroundStyle(Theme.textPrimary)
+                                            Spacer()
+                                            CoverstockBadge(type: ball.coverstockType)
+                                        }
+                                        .card(padding: 10)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
                             }
                         }
                     }
