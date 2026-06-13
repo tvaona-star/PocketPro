@@ -494,6 +494,8 @@ struct SessionsTabView: View {
     private func practiceRow(_ session: Session) -> some View {
         let scores = session.sortedGames.map { $0.finalScore }.filter { $0 > 0 }
         let avg = scores.isEmpty ? nil : Double(scores.reduce(0, +)) / Double(scores.count)
+        let gameCount = session.sortedGames.count
+        let locationSuffix = session.location.map { " · \($0.name)" } ?? ""
         return HStack(spacing: 12) {
             Image(systemName: "figure.bowling")
                 .font(.system(size: 16))
@@ -507,8 +509,7 @@ struct SessionsTabView: View {
                         Badge(text: "Sport", color: Theme.warning)
                     }
                 }
-                Text("\(session.sortedGames.count) game\(session.sortedGames.count == 1 ? "" : "s")"
-                     + (session.location?.name.map { " · \($0)" } ?? ""))
+                Text("\(gameCount) game\(gameCount == 1 ? "" : "s")\(locationSuffix)")
                     .font(.system(size: 12))
                     .foregroundStyle(Theme.textSecondary)
                     .lineLimit(1)
