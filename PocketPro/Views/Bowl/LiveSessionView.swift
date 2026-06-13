@@ -220,6 +220,8 @@ struct LiveSessionView: View {
     @ViewBuilder
     private func entryArea(game: Game) -> some View {
         let entry = entryContext(game: game)
+        // Re-seed the deck whenever we move to a new ball (see seedSelection).
+        let entryKey = "\(entry.frameIndex):\(entry.ballIndex)"
 
         VStack(spacing: 12) {
             HStack {
@@ -239,20 +241,44 @@ struct LiveSessionView: View {
             }
 
             if entryMode == .pinDeck, let rack = entry.rack {
-                PinDeckView(available: rack, standingAfter: $standingSelection)
+                // 2nd ball onward: the deck starts with every remaining pin standing
+                // and the bowler taps the ones knocked down (PRD change request).
+                let knockDown = entry.ballIndex >= 1
+
+                PinDeckView(available: rack, standingAfter: $standingSelection, selectsKnockedDown: knockDown)
                     .frame(maxWidth: 340)
                     .frame(maxWidth: .infinity)
 
-                Button {
-                    commitPinBall(game: game, entry: entry, rack: rack)
-                } label: {
-                    Text(pinCommitLabel(entry: entry, rack: rack))
-                        .font(.system(size: 17, weight: .bold))
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 15)
-                        .background(standingSelection.isEmpty ? Theme.success : Theme.accent)
-                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                Text(knockDown ? "Tap the pins you knocked down" : "Tap the pins left standing")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.textMuted)
+
+                HStack(spacing: 10) {
+                    if knockDown {
+                        Button {
+                            standingSelection = .empty
+                            commitPinBall(game: game, entry: entry, rack: rack)
+                        } label: {
+                            Text(rack.count == 10 ? "Strike  ✕" : "Spare  /")
+                                .font(.system(size: 17, weight: .bold))
+                                .foregroundStyle(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 15)
+                                .background(Theme.success)
+                                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        }
+                    }
+                    Button {
+                        commitPinBall(game: game, entry: entry, rack: rack)
+                    } label: {
+                        Text(pinCommitLabel(entry: entry, rack: rack))
+                            .font(.system(size: 17, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 15)
+                            .background(standingSelection.isEmpty ? Theme.success : Theme.accent)
+                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    }
                 }
             } else {
                 DirectEntryPad(maxPins: maxPins(game: game, entry: entry)) { count in
@@ -261,6 +287,14 @@ struct LiveSessionView: View {
             }
         }
         .card()
+        .onAppear { seedSelection(entry: entry) }
+        .onChange(of: entryKey) { seedSelection(entry: entry) }
+    }
+
+    /// On the 2nd ball the deck represents knocked-down pins, so it starts with every
+    /// remaining pin standing (nothing knocked). The 1st ball starts empty (strike-ready).
+    private func seedSelection(entry: EntryContext) {
+        standingSelection = entry.ballIndex >= 1 ? (entry.rack ?? .empty) : .empty
     }
 
     private func pinCommitLabel(entry: EntryContext, rack: PinSet) -> String {
