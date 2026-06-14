@@ -200,7 +200,7 @@ struct StatsTabView: View {
                         Button {
                             showingCompare = true
                         } label: {
-                            Label("Compare Averages", systemImage: "chart.bar.xaxis")
+                            Label("Compare Stats", systemImage: "chart.bar.xaxis")
                                 .font(.system(size: 15, weight: .semibold))
                                 .foregroundStyle(Theme.accent)
                                 .frame(maxWidth: .infinity)
@@ -385,13 +385,17 @@ struct StatsTabView: View {
             return suffix == "%" ? String(format: "%.1f%%", value) : Notation.oneDecimal(value)
         }
 
+        // 2×4 grid (row-major): left column Strike/SinglePin/Makeable/Clean,
+        // right column Average/Double/Split/Open.
         return LazyVGrid(columns: columns, spacing: 10) {
             StatTile(label: "Strike %", value: display(stats.strikePercent))
-            StatTile(label: "Single Spare %", value: display(stats.singleSparePercent))
-            StatTile(label: "Split %", value: display(stats.splitPercent))
-            StatTile(label: "Open Frame %", value: display(stats.openFramePercent))
-            StatTile(label: "Clean Game %", value: display(stats.cleanGamePercent))
             StatTile(label: "Average", value: display(stats.average, suffix: ""))
+            StatTile(label: "Single Pin Spare %", value: display(stats.singleSparePercent))
+            StatTile(label: "Double %", value: display(stats.doublesPercent))
+            StatTile(label: "Makeable Spare %", value: display(stats.makeableSparePercent))
+            StatTile(label: "Split %", value: display(stats.splitPercent))
+            StatTile(label: "Clean Game %", value: display(stats.cleanGamePercent))
+            StatTile(label: "Open Frame %", value: display(stats.openFramePercent))
         }
     }
 }
@@ -518,133 +522,160 @@ struct IDFilterSheet: View {
     }
 }
 
-// MARK: - Average comparison (PRD 5.3: compare leagues or seasons side by side)
+// MARK: - Stat comparison (PRD 5.3: two configurable columns, the 8 dashboard cards)
 
-/// Compares averages across leagues/tournaments or across USBC seasons.
+/// One selectable comparable for a compare column — a league, tournament, or season.
+struct CompareItem: Identifiable {
+    let token: String       // "L:name" / "T:name" / "S:label"
+    let label: String
+    let category: String    // "Leagues" / "Tournaments" / "Seasons"
+    var id: String { token }
+}
+
+/// Two columns, each aggregating a chosen set of leagues / tournaments / seasons,
+/// shown as the eight main-dashboard stat cards for side-by-side comparison.
 struct StatsCompareView: View {
     @Query(sort: \Session.date, order: .reverse) private var allSessions: [Session]
     @Environment(\.dismiss) private var dismiss
 
-    enum Dimension: String, CaseIterable, Identifiable {
-        case league = "Leagues"
-        case season = "Seasons"
-        var id: String { rawValue }
-    }
+    @State private var leftSelection: Set<String> = []
+    @State private var rightSelection: Set<String> = []
+    @State private var editing: Side?
 
-    @State private var dimension: Dimension = .league
+    enum Side: Int, Identifiable { case left, right; var id: Int { rawValue } }
 
-    private struct Group: Identifiable {
-        let id = UUID()
-        let label: String
-        let average: Double
-        let games: Int
-        let high: Int
-    }
-
-    private var groups: [Group] {
-        var buckets: [String: [Int]] = [:]
-        var order: [String] = []
-        for session in allSessions where !session.isActive {
-            let key: String
-            switch dimension {
-            case .league:
-                guard let name = session.leagueName ?? session.eventName, !name.isEmpty else { continue }
-                key = name
-            case .season:
-                key = Self.usbcSeasonLabel(for: session.date)
-            }
-            // Use the lightweight final scores only — gameRecords() also derives every
-            // leave (slow over a large history) and we don't need that here.
-            let scores = session.sortedGames.map { $0.finalScore }.filter { $0 > 0 }
-            guard !scores.isEmpty else { continue }
-            if buckets[key] == nil { order.append(key) }
-            buckets[key, default: []].append(contentsOf: scores)
-        }
-        let result = order.compactMap { key -> Group? in
-            guard let scores = buckets[key], !scores.isEmpty else { return nil }
-            let avg = Double(scores.reduce(0, +)) / Double(scores.count)
-            return Group(label: key, average: avg, games: scores.count, high: scores.max() ?? 0)
-        }
-        return result.sorted { $0.average > $1.average }
-    }
+    private static let statOrder = [
+        "Average", "Strike %", "Single Pin Spare %", "Makeable Spare %",
+        "Double %", "Split %", "Clean Game %", "Open Frame %",
+    ]
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                // Compute the grouping once per render (it was previously recomputed
-                // three times — for the list, the bar scale, and the spread note).
-                let groups = self.groups
-                let maxAverage = groups.map { $0.average }.max() ?? 1
-
-                VStack(alignment: .leading, spacing: 14) {
-                    Picker("Compare", selection: $dimension) {
-                        ForEach(Dimension.allCases) { Text($0.rawValue).tag($0) }
-                    }
-                    .pickerStyle(.segmented)
-
-                    if groups.isEmpty {
-                        Text("Not enough data to compare yet.")
-                            .font(Theme.cardSubtitle)
-                            .foregroundStyle(Theme.textMuted)
-                            .frame(maxWidth: .infinity, alignment: .center)
-                            .padding(.top, 40)
-                    } else {
-                        ForEach(groups) { group in
-                            compareRow(group, maxAverage: maxAverage)
-                        }
-                        if dimension == .league && groups.count >= 2 {
-                            spreadNote(groups)
-                        }
-                    }
+                HStack(alignment: .top, spacing: 10) {
+                    column($leftSelection, side: .left)
+                    column($rightSelection, side: .right)
                 }
                 .padding()
             }
             .background(Theme.bgPrimary)
-            .navigationTitle("Compare Averages")
+            .navigationTitle("Compare Stats")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } }
             }
+            .sheet(item: $editing) { side in
+                ComparePickerSheet(
+                    items: comparables,
+                    selection: side == .left ? $leftSelection : $rightSelection
+                )
+                .presentationDetents([.medium, .large])
+            }
         }
     }
 
-    private func compareRow(_ group: Group, maxAverage: Double) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text(group.label)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(Theme.textPrimary)
-                    .lineLimit(1)
-                Spacer()
-                Text(Notation.oneDecimal(group.average))
-                    .font(.system(size: 18, weight: .bold).monospacedDigit())
-                    .foregroundStyle(Theme.accent)
-            }
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(Theme.bgElevated)
-                        .frame(height: 8)
-                    Capsule()
-                        .fill(Theme.accent)
-                        .frame(width: geo.size.width * CGFloat(group.average / maxAverage), height: 8)
+    private func column(_ selection: Binding<Set<String>>, side: Side) -> some View {
+        let empty = selection.wrappedValue.isEmpty
+        let stats = StatsEngine.dashboard(games: gameRecords(for: selection.wrappedValue))
+        return VStack(spacing: 8) {
+            Button { editing = side } label: {
+                VStack(spacing: 3) {
+                    Text(selectionLabel(selection.wrappedValue))
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(empty ? Theme.accent : Theme.textPrimary)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(2)
+                    Text(empty ? "Tap to choose" : "\(stats.gamesCount) game\(stats.gamesCount == 1 ? "" : "s")")
+                        .font(.system(size: 11))
+                        .foregroundStyle(Theme.textMuted)
                 }
+                .frame(maxWidth: .infinity, minHeight: 46)
+                .padding(.vertical, 8)
+                .background(Theme.bgElevated)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             }
-            .frame(height: 8)
-            Text("\(group.games) game\(group.games == 1 ? "" : "s") · high \(group.high)")
-                .font(.system(size: 12))
-                .foregroundStyle(Theme.textSecondary)
+            .buttonStyle(.plain)
+
+            ForEach(Self.statOrder, id: \.self) { label in
+                VStack(spacing: 2) {
+                    Text(empty ? "--" : value(label, stats))
+                        .font(.system(size: 18, weight: .bold).monospacedDigit())
+                        .foregroundStyle(Theme.textPrimary)
+                    Text(label.uppercased())
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(Theme.textSecondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+                .background(Theme.bgCard)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            }
         }
-        .card()
     }
 
-    private func spreadNote(_ groups: [Group]) -> some View {
-        let avgs = groups.map { $0.average }
-        let spread = (avgs.max() ?? 0) - (avgs.min() ?? 0)
-        return Text("Spread between highest and lowest average: \(Notation.oneDecimal(spread)) pins.")
-            .font(.system(size: 12))
-            .foregroundStyle(Theme.textMuted)
-            .frame(maxWidth: .infinity, alignment: .center)
+    private func value(_ label: String, _ s: DashboardStats) -> String {
+        func pct(_ v: Double?) -> String { v.map { String(format: "%.1f%%", $0) } ?? "--" }
+        switch label {
+        case "Average": return s.average.map { Notation.oneDecimal($0) } ?? "--"
+        case "Strike %": return pct(s.strikePercent)
+        case "Single Pin Spare %": return pct(s.singleSparePercent)
+        case "Makeable Spare %": return pct(s.makeableSparePercent)
+        case "Double %": return pct(s.doublesPercent)
+        case "Split %": return pct(s.splitPercent)
+        case "Clean Game %": return pct(s.cleanGamePercent)
+        case "Open Frame %": return pct(s.openFramePercent)
+        default: return "--"
+        }
+    }
+
+    private func selectionLabel(_ selection: Set<String>) -> String {
+        if selection.isEmpty { return "Select…" }
+        let labels = comparables.filter { selection.contains($0.token) }.map { $0.label }
+        if labels.count == 1 { return labels[0] }
+        return "\(labels.count) selected"
+    }
+
+    // MARK: Data
+
+    private func tokens(for session: Session) -> Set<String> {
+        var t: Set<String> = ["S:" + Self.usbcSeasonLabel(for: session.date)]
+        if let name = session.leagueName ?? session.eventName, !name.isEmpty {
+            t.insert((session.type == .tournament ? "T:" : "L:") + name.lowercased())
+        }
+        return t
+    }
+
+    private func gameRecords(for selection: Set<String>) -> [GameRecord] {
+        guard !selection.isEmpty else { return [] }
+        return allSessions
+            .filter { !$0.isActive && !tokens(for: $0).isDisjoint(with: selection) }
+            .flatMap { $0.gameRecords() }
+    }
+
+    /// Leagues, tournaments, and seasons available to pick, each newest-first.
+    private var comparables: [CompareItem] {
+        var display: [String: String] = [:]
+        var latest: [String: Date] = [:]
+        for session in allSessions where !session.isActive {
+            let seasonLabel = Self.usbcSeasonLabel(for: session.date)
+            let seasonToken = "S:" + seasonLabel
+            if display[seasonToken] == nil { display[seasonToken] = seasonLabel + " season" }
+            if session.date > (latest[seasonToken] ?? .distantPast) { latest[seasonToken] = session.date }
+            guard let name = session.leagueName ?? session.eventName, !name.isEmpty else { continue }
+            let token = (session.type == .tournament ? "T:" : "L:") + name.lowercased()
+            if display[token] == nil { display[token] = name }
+            if session.date > (latest[token] ?? .distantPast) { latest[token] = session.date }
+        }
+        func items(prefix: String, category: String) -> [CompareItem] {
+            display.keys.filter { $0.hasPrefix(prefix) }
+                .sorted { (latest[$0] ?? .distantPast) > (latest[$1] ?? .distantPast) }
+                .map { CompareItem(token: $0, label: display[$0] ?? $0, category: category) }
+        }
+        return items(prefix: "L:", category: "Leagues")
+            + items(prefix: "T:", category: "Tournaments")
+            + items(prefix: "S:", category: "Seasons")
     }
 
     /// USBC season label (Aug–Jul) for a date, e.g. "2024–25".
@@ -655,5 +686,54 @@ struct StatsCompareView: View {
         let startYear = month >= 8 ? year : year - 1
         let endTwo = String(format: "%02d", (startYear + 1) % 100)
         return "\(startYear)–\(endTwo)"
+    }
+}
+
+/// Multi-select picker for a compare column (leagues / tournaments / seasons).
+struct ComparePickerSheet: View {
+    let items: [CompareItem]
+    @Binding var selection: Set<String>
+    @Environment(\.dismiss) private var dismiss
+
+    private var categories: [String] {
+        var seen: [String] = []
+        for item in items where !seen.contains(item.category) { seen.append(item.category) }
+        return seen
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if !selection.isEmpty {
+                    Button("Clear selection", role: .destructive) { selection.removeAll() }
+                }
+                ForEach(categories, id: \.self) { category in
+                    Section(category) {
+                        ForEach(items.filter { $0.category == category }) { item in
+                            Button {
+                                if selection.contains(item.token) {
+                                    selection.remove(item.token)
+                                } else {
+                                    selection.insert(item.token)
+                                }
+                            } label: {
+                                HStack {
+                                    Text(item.label).foregroundStyle(Theme.textPrimary)
+                                    Spacer()
+                                    if selection.contains(item.token) {
+                                        Image(systemName: "checkmark").foregroundStyle(Theme.accent)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Choose Data")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } }
+            }
+        }
     }
 }

@@ -203,6 +203,23 @@ public enum ScoringEngine {
         return (made, opportunities)
     }
 
+    /// Turkey conversion: after a double (two consecutive fresh-rack strikes) with a
+    /// following fresh delivery, how often the third was also a strike.
+    public static func turkeys(frames: [[Int]]) -> (made: Int, opportunities: Int) {
+        let deliveries = freshDeliveries(frames: frames)
+        var made = 0
+        var opportunities = 0
+        for i in 0..<deliveries.count where i + 2 < deliveries.count {
+            if deliveries[i].isStrike && deliveries[i + 1].isStrike {
+                opportunities += 1
+                if deliveries[i + 2].isStrike {
+                    made += 1
+                }
+            }
+        }
+        return (made, opportunities)
+    }
+
     // MARK: - Entry-flow helpers
 
     /// True when no further balls can be thrown in the frame.

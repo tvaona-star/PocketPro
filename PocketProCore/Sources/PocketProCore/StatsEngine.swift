@@ -108,13 +108,17 @@ public struct DashboardStats: Equatable, Sendable {
     public let sessionsCount: Int
     public let strikePercent: Double?
     public let sparePercent: Double?
-    /// Conversion rate on single-pin leaves only (the makeable-spare headline).
+    /// Conversion rate on single-pin leaves only.
     public let singleSparePercent: Double?
+    /// Conversion rate on all non-split (makeable) spare leaves.
+    public let makeableSparePercent: Double?
     public let splitPercent: Double?
     public let openFramePercent: Double?
     public let cleanGamePercent: Double?
     public let average: Double?
     public let doublesPercent: Double?
+    /// Strike-after-a-double rate — how often a 3rd strike follows two in a row.
+    public let turkeyPercent: Double?
     public let turkeyPlusPercent: Double?
     public let maxStreakInGame: Int
     public let firstBallAverage: Double?
@@ -156,11 +160,15 @@ public enum StatsEngine {
         var spareMakes = 0
         var singleAttempts = 0
         var singleMakes = 0
+        var makeableAttempts = 0
+        var makeableMakes = 0
         var openFrames = 0
         var totalFrames = 0
         var cleanGames = 0
         var doublesMade = 0
         var doublesOpportunities = 0
+        var turkeysMade = 0
+        var turkeysOpportunities = 0
         var gamesWithTurkey = 0
         var maxStreak = 0
         var streakHistory: [StreakEvent] = []
@@ -183,6 +191,10 @@ public enum StatsEngine {
             doublesMade += d.made
             doublesOpportunities += d.opportunities
 
+            let t = ScoringEngine.turkeys(frames: game.frames)
+            turkeysMade += t.made
+            turkeysOpportunities += t.opportunities
+
             let gameStreaks = ScoringEngine.streaks(frames: game.frames)
             if let best = gameStreaks.max(), best > maxStreak {
                 maxStreak = best
@@ -199,7 +211,8 @@ public enum StatsEngine {
             }
 
             for leave in game.leaves {
-                if leave.categories.contains(.split) { splitLeaves += 1 }
+                let isSplit = leave.categories.contains(.split)
+                if isSplit { splitLeaves += 1 }
                 // Spare % counts every leave you had a shot at — splits included — so
                 // it matches the Spare Breakdown total and standard spare conversion.
                 if leave.hadOpportunity {
@@ -208,6 +221,10 @@ public enum StatsEngine {
                     if leave.pins.count == 1 {
                         singleAttempts += 1
                         if leave.converted { singleMakes += 1 }
+                    }
+                    if !isSplit {
+                        makeableAttempts += 1
+                        if leave.converted { makeableMakes += 1 }
                     }
                 }
             }
@@ -225,11 +242,13 @@ public enum StatsEngine {
             strikePercent: percent(freshStrikes, freshTotal),
             sparePercent: percent(spareMakes, spareAttempts),
             singleSparePercent: percent(singleMakes, singleAttempts),
+            makeableSparePercent: percent(makeableMakes, makeableAttempts),
             splitPercent: percent(splitLeaves, freshTotal),
             openFramePercent: percent(openFrames, totalFrames),
             cleanGamePercent: percent(cleanGames, framed.count),
             average: games.isEmpty ? nil : Double(games.reduce(0) { $0 + $1.finalScore }) / Double(games.count),
             doublesPercent: percent(doublesMade, doublesOpportunities),
+            turkeyPercent: percent(turkeysMade, turkeysOpportunities),
             turkeyPlusPercent: percent(gamesWithTurkey, framed.count),
             maxStreakInGame: maxStreak,
             firstBallAverage: freshTotal > 0 ? Double(freshPinfall) / Double(freshTotal) : nil,

@@ -209,6 +209,9 @@ struct StrikeClustersPanel: View {
     private var doublePct: String {
         stats.doublesPercent.map { String(format: "%.0f%%", $0) } ?? "--"
     }
+    private var turkeyPct: String {
+        stats.turkeyPercent.map { String(format: "%.0f%%", $0) } ?? "--"
+    }
     private var totalClusters: Int {
         stats.streakCounts.values.reduce(0, +)
     }
@@ -221,7 +224,7 @@ struct StrikeClustersPanel: View {
                 HStack(spacing: 10) {
                     miniTile("1st Ball Avg", firstBall)
                     miniTile("Double %", doublePct)
-                    Spacer()
+                    miniTile("Turkey %", turkeyPct)
                 }
 
                 let lengths = stats.streakCounts.keys.sorted()
@@ -250,13 +253,15 @@ struct StrikeClustersPanel: View {
     private func miniTile(_ label: String, _ value: String) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(value)
-                .font(Theme.statNumber(22))
+                .font(Theme.statNumber(20))
                 .foregroundStyle(Theme.textPrimary)
             Text(label.uppercased())
                 .font(Theme.statLabel)
                 .foregroundStyle(Theme.textSecondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
         }
-        .frame(maxWidth: 170, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(10)
         .background(Theme.bgElevated)
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
