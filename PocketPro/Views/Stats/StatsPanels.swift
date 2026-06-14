@@ -1,135 +1,6 @@
 import SwiftUI
 import PocketProCore
 
-// MARK: - Trend strip (PRD 5.3: always visible at top of Stats)
-
-struct TrendStripView: View {
-    let games: [GameRecord]
-    /// Unfiltered games used for the hot-stat comparison.
-    let allGamesForHotStat: [GameRecord]
-
-    private var trend: StatsEngine.Trend {
-        StatsEngine.trend(games: games)
-    }
-
-    var body: some View {
-        let points = trend.recentSessionAverages
-
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .center, spacing: 14) {
-                if points.count >= 2 {
-                    TrendSparkline(values: points)
-                        .frame(width: 120, height: 36)
-                } else {
-                    Text("Last 5 sessions")
-                        .font(Theme.cardSubtitle)
-                        .foregroundStyle(Theme.textMuted)
-                }
-
-                VStack(alignment: .leading, spacing: 2) {
-                    if let last = points.last {
-                        Text(Notation.oneDecimal(last))
-                            .font(Theme.statNumber(24))
-                            .foregroundStyle(Theme.textPrimary)
-                    } else {
-                        Text("--")
-                            .font(Theme.statNumber(24))
-                            .foregroundStyle(Theme.textMuted)
-                    }
-                    Text("LAST 5 AVG")
-                        .font(Theme.statLabel)
-                        .foregroundStyle(Theme.textSecondary)
-                }
-                Spacer()
-                if let delta = trend.deltaVsPrior {
-                    TrendArrow(delta: delta)
-                }
-            }
-
-            if let hot = hotStat {
-                HStack(spacing: 6) {
-                    Image(systemName: "flame.fill")
-                        .font(.system(size: 12))
-                        .foregroundStyle(Theme.warning)
-                    Text(hot)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(Theme.textSecondary)
-                }
-            }
-        }
-        .card()
-    }
-
-    /// Biggest mover this month vs the prior month (PRD: one highlighted hot stat).
-    private var hotStat: String? {
-        let calendar = Calendar.current
-        let now = Date()
-        guard let monthAgo = calendar.date(byAdding: .month, value: -1, to: now),
-              let twoMonthsAgo = calendar.date(byAdding: .month, value: -2, to: now) else { return nil }
-
-        let current = allGamesForHotStat.filter { $0.date >= monthAgo }
-        let prior = allGamesForHotStat.filter { $0.date >= twoMonthsAgo && $0.date < monthAgo }
-        guard current.count >= 3, prior.count >= 3 else { return nil }
-
-        let currentStats = StatsEngine.dashboard(games: current)
-        let priorStats = StatsEngine.dashboard(games: prior)
-
-        var candidates: [(String, Double)] = []
-        if let c = currentStats.sparePercent, let p = priorStats.sparePercent {
-            candidates.append(("Spare %", c - p))
-        }
-        if let c = currentStats.strikePercent, let p = priorStats.strikePercent {
-            candidates.append(("Strike %", c - p))
-        }
-        if let c = currentStats.average, let p = priorStats.average {
-            candidates.append(("Average", c - p))
-        }
-        guard let best = candidates.max(by: { abs($0.1) < abs($1.1) }), abs(best.1) >= 1 else { return nil }
-        let direction = best.1 > 0 ? "up" : "down"
-        let amount = best.0 == "Average" ? Notation.oneDecimal(abs(best.1)) : String(format: "%.0f points", abs(best.1))
-        return "\(best.0) \(direction) \(amount) this month"
-    }
-}
-
-/// Five dots on a simple line — no chart framework needed.
-struct TrendSparkline: View {
-    let values: [Double]
-
-    var body: some View {
-        GeometryReader { geo in
-            let lo = (values.min() ?? 0) - 2
-            let hi = (values.max() ?? 1) + 2
-            let span = max(hi - lo, 1)
-            let stepX = values.count > 1 ? geo.size.width / CGFloat(values.count - 1) : 0
-
-            let point: (Int) -> CGPoint = { index in
-                CGPoint(
-                    x: CGFloat(index) * stepX,
-                    y: geo.size.height * (1 - CGFloat((values[index] - lo) / span))
-                )
-            }
-
-            ZStack {
-                Path { path in
-                    guard values.count > 1 else { return }
-                    path.move(to: point(0))
-                    for i in 1..<values.count {
-                        path.addLine(to: point(i))
-                    }
-                }
-                .stroke(Theme.accent.opacity(0.7), lineWidth: 2)
-
-                ForEach(values.indices, id: \.self) { i in
-                    Circle()
-                        .fill(i == values.count - 1 ? Theme.accent : Theme.textSecondary)
-                        .frame(width: 6, height: 6)
-                        .position(point(i))
-                }
-            }
-        }
-    }
-}
-
 // MARK: - Spare breakdown panel (PRD 5.3, taxonomy per 5.5)
 
 struct SpareBreakdownPanel: View {
@@ -207,10 +78,10 @@ struct StrikeClustersPanel: View {
         stats.firstBallAverage.map { Notation.oneDecimal($0) } ?? "--"
     }
     private var doublePct: String {
-        stats.doublesPercent.map { String(format: "%.0f%%", $0) } ?? "--"
+        Notation.percent(stats.doublesPercent)
     }
     private var turkeyPct: String {
-        stats.turkeyPercent.map { String(format: "%.0f%%", $0) } ?? "--"
+        Notation.percent(stats.turkeyPercent)
     }
     private var totalClusters: Int {
         stats.streakCounts.values.reduce(0, +)

@@ -390,7 +390,7 @@ struct LeaveFrequencyList: View {
                         filled: false
                     )
                 }
-                Text("Left \(aggregate.timesLeft)× · \(String(format: "%.0f%%", percentOfFrames)) of leaves")
+                Text("Left \(aggregate.timesLeft)× · \(Notation.percent(percentOfFrames)) of leaves")
                     .font(.system(size: 12))
                     .foregroundStyle(Theme.textSecondary)
             }
