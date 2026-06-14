@@ -20,6 +20,7 @@ struct SparesTabView: View {
     @State private var showingBallPicker = false
     @State private var showingPatternPicker = false
     @State private var bucketFilter: SpareBucket?
+    @State private var spareSort: SpareSort = .mostLeft
     @State private var heatmapPin: Int?
     @State private var viewMode: ViewMode = .list
 
@@ -179,15 +180,19 @@ struct SparesTabView: View {
 
                         switch viewMode {
                         case .list:
-                            bucketMenu
-                            LeaveFrequencyList(games: games, bucketFilter: bucketFilter, pinFilter: heatmapPin)
+                            HStack(spacing: 8) {
+                                bucketMenu
+                                sortMenu
+                                Spacer()
+                            }
+                            LeaveFrequencyList(games: games, bucketFilter: bucketFilter, pinFilter: heatmapPin, sort: spareSort)
                         case .heatmap:
                             PinLeaveHeatmap(games: games, selectedPin: $heatmapPin)
                             if let pin = heatmapPin {
                                 Text("Showing leaves containing the \(pin) pin — tap the pin again to clear.")
                                     .font(.system(size: 12))
                                     .foregroundStyle(Theme.textMuted)
-                                LeaveFrequencyList(games: games, bucketFilter: nil, pinFilter: pin)
+                                LeaveFrequencyList(games: games, bucketFilter: nil, pinFilter: pin, sort: spareSort)
                             }
                         }
                     }
@@ -289,25 +294,24 @@ struct SparesTabView: View {
 
     /// Bucket filter dropdown (PRD 5.5.4): Single Pins / Multi Pins / Splits / Opens.
     private var bucketMenu: some View {
-        HStack {
-            Menu {
-                Button("All leaves") { bucketFilter = nil }
-                ForEach(SpareBucket.allCases) { bucket in
-                    Button(bucket.rawValue) { bucketFilter = bucket }
-                }
-            } label: {
-                HStack(spacing: 4) {
-                    Text(bucketFilter?.rawValue ?? "All leaves")
-                    Image(systemName: "chevron.down").font(.system(size: 11, weight: .bold))
-                }
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(bucketFilter != nil ? Color.white : Theme.textSecondary)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 7)
-                .background(bucketFilter != nil ? Theme.accent : Theme.bgElevated)
-                .clipShape(Capsule())
+        Menu {
+            Button("All leaves") { bucketFilter = nil }
+            ForEach(SpareBucket.allCases) { bucket in
+                Button(bucket.rawValue) { bucketFilter = bucket }
             }
-            Spacer()
+        } label: {
+            menuPill(bucketFilter?.rawValue ?? "All leaves", active: bucketFilter != nil)
+        }
+    }
+
+    /// Sort order for the leave list: most-left / best % / worst %.
+    private var sortMenu: some View {
+        Menu {
+            ForEach(SpareSort.allCases) { option in
+                Button(option.rawValue) { spareSort = option }
+            }
+        } label: {
+            menuPill(spareSort.rawValue, active: spareSort != .mostLeft)
         }
     }
 }
@@ -381,16 +385,33 @@ struct CornerPinSpotlight: View {
 
 // MARK: - Leave frequency list (PRD 5.5.4 default view)
 
+/// Sort order for the leave-frequency list.
+enum SpareSort: String, CaseIterable, Identifiable {
+    case mostLeft = "Most left"
+    case bestPct = "Best %"
+    case worstPct = "Worst %"
+    var id: String { rawValue }
+}
+
 struct LeaveFrequencyList: View {
     let games: [GameRecord]
     let bucketFilter: SpareBucket?
     let pinFilter: Int?
+    var sort: SpareSort = .mostLeft
 
     private var entries: [LeaveFrequencyEntry] {
-        StatsEngine.leaveFrequency(games: games).filter { entry in
+        let filtered = StatsEngine.leaveFrequency(games: games).filter { entry in
             if let bucketFilter, !bucketFilter.contains(entry) { return false }
             if let pinFilter, !entry.pins.contains(pinFilter) { return false }
             return true
+        }
+        switch sort {
+        case .mostLeft:
+            return filtered.sorted { $0.aggregate.timesLeft > $1.aggregate.timesLeft }
+        case .bestPct:
+            return filtered.sorted { ($0.aggregate.conversionPercent ?? -1) > ($1.aggregate.conversionPercent ?? -1) }
+        case .worstPct:
+            return filtered.sorted { ($0.aggregate.conversionPercent ?? 101) < ($1.aggregate.conversionPercent ?? 101) }
         }
     }
 

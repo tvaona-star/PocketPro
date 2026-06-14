@@ -19,6 +19,41 @@ struct SessionsTabView: View {
     @State private var deleteLeagueCandidate: String?
     @State private var deleteTournamentCandidate: String?
     @State private var deleteSessionCandidate: Session?
+    @State private var sessionSort: SessionSort = .recent
+
+    enum SessionSort: String, CaseIterable, Identifiable {
+        case recent = "Most recent"
+        case name = "Name"
+        case average = "Average (high)"
+        var id: String { rawValue }
+    }
+
+    private func sortedLeagues(_ groups: [LeagueGroup]) -> [LeagueGroup] {
+        switch sessionSort {
+        case .recent: return groups.sorted { $0.latest > $1.latest }
+        case .name: return groups.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        case .average: return groups.sorted { ($0.average ?? 0) > ($1.average ?? 0) }
+        }
+    }
+
+    private func sortedTournaments(_ groups: [TournamentGroup]) -> [TournamentGroup] {
+        switch sessionSort {
+        case .recent: return groups.sorted { $0.latest > $1.latest }
+        case .name: return groups.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        case .average: return groups.sorted { ($0.average ?? 0) > ($1.average ?? 0) }
+        }
+    }
+
+    private func sortedPractice(_ sessions: [Session]) -> [Session] {
+        func avg(_ s: Session) -> Double {
+            let scores = s.sortedGames.map { $0.finalScore }.filter { $0 > 0 }
+            return scores.isEmpty ? 0 : Double(scores.reduce(0, +)) / Double(scores.count)
+        }
+        switch sessionSort {
+        case .recent, .name: return sessions.sorted { $0.date > $1.date }
+        case .average: return sessions.sorted { avg($0) > avg($1) }
+        }
+    }
 
     private var importReviewCount: Int {
         allSessions.filter { $0.importedFromPinPal && $0.needsTypeReview }.count
@@ -163,7 +198,7 @@ struct SessionsTabView: View {
                             Section {
                                 sectionHeaderRow("Leagues", count: leagues.count, isExpanded: $leaguesExpanded)
                                 if leaguesExpanded {
-                                    ForEach(leagues) { group in
+                                    ForEach(sortedLeagues(leagues)) { group in
                                         leagueNavRow(group, archived: false)
                                     }
                                 }
@@ -174,7 +209,7 @@ struct SessionsTabView: View {
                             Section {
                                 sectionHeaderRow("Tournaments", count: tournamentGroups.count, isExpanded: $tournamentsExpanded)
                                 if tournamentsExpanded {
-                                    ForEach(tournamentGroups) { group in
+                                    ForEach(sortedTournaments(tournamentGroups)) { group in
                                         tournamentNavRow(group, archived: false)
                                     }
                                 }
@@ -185,7 +220,7 @@ struct SessionsTabView: View {
                             Section {
                                 sectionHeaderRow("Practice", count: practiceSessions.count, isExpanded: $practiceExpanded)
                                 if practiceExpanded {
-                                    ForEach(practiceSessions) { session in
+                                    ForEach(sortedPractice(practiceSessions)) { session in
                                         sessionNavRow(session, archived: false)
                                     }
                                 }
@@ -246,6 +281,19 @@ struct SessionsTabView: View {
                         }
                     } label: {
                         Image(systemName: "plus")
+                    }
+                }
+                if hasAnySessions {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Menu {
+                            Picker("Sort by", selection: $sessionSort) {
+                                ForEach(SessionSort.allCases) { option in
+                                    Text(option.rawValue).tag(option)
+                                }
+                            }
+                        } label: {
+                            Image(systemName: "arrow.up.arrow.down")
+                        }
                     }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
