@@ -8,6 +8,8 @@ struct BallSwapSheet: View {
     let session: Session
     let game: Game?
     let arsenal: [Ball]
+    /// When set (editing a past frame), the pick applies to this frame only.
+    var targetFrame: Frame? = nil
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
 
@@ -68,6 +70,13 @@ struct BallSwapSheet: View {
     }
 
     private func swap(to ball: Ball) {
+        // Editing a specific frame: change only that frame's ball.
+        if let targetFrame {
+            targetFrame.ballID = ball.id
+            targetFrame.ballSwapReason = reason.isEmpty ? nil : reason
+            dismiss()
+            return
+        }
         guard let game else {
             dismiss()
             return

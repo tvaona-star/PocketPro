@@ -83,7 +83,7 @@ struct LiveSessionView: View {
             }
         }
         .sheet(isPresented: $showingBallSwap) {
-            BallSwapSheet(session: session, game: game, arsenal: arsenal)
+            BallSwapSheet(session: session, game: game, arsenal: arsenal, targetFrame: editingFrame)
                 .presentationDetents([.medium])
         }
         .sheet(item: $noteFrame) { frame in
@@ -158,8 +158,8 @@ struct LiveSessionView: View {
             HStack(spacing: 8) {
                 Image(systemName: "circle.fill")
                     .font(.system(size: 10))
-                    .foregroundStyle(Theme.coverstockColor(currentBall(game: game)?.coverstockType))
-                Text(currentBall(game: game)?.displayName ?? "Select ball")
+                    .foregroundStyle(Theme.coverstockColor(chipBall(game: game)?.coverstockType))
+                Text(chipBall(game: game)?.displayName ?? "Select ball")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(Theme.textPrimary)
                 Image(systemName: "arrow.triangle.2.circlepath")
@@ -174,9 +174,25 @@ struct LiveSessionView: View {
         .buttonStyle(.plain)
     }
 
-    private func currentBall(game: Game) -> Ball? {
-        let currentID = game.sortedFrames.compactMap { $0.ballID }.last ?? game.ballID
-        return arsenal.first { $0.id == currentID }
+    /// The ball shown on the chip — the one assigned to the frame currently being
+    /// entered or edited (each frame carries its own ball).
+    private func chipBall(game: Game) -> Ball? {
+        let id = chipBallID(game: game)
+        return arsenal.first { $0.id == id }
+    }
+
+    private func chipBallID(game: Game) -> UUID? {
+        if let editing = editingFrame { return editing.ballID ?? game.ballID }
+        let entry = entryContext(game: game)
+        if let frame = game.sortedFrames.first(where: { $0.number - 1 == entry.frameIndex }) {
+            return frame.ballID ?? game.ballID
+        }
+        return ballInHand(game: game)
+    }
+
+    /// Ball carried into a new frame — the previous frame's ball, else the game's.
+    private func ballInHand(game: Game) -> UUID? {
+        game.sortedFrames.last?.ballID ?? game.ballID
     }
 
     // MARK: - Entry
@@ -268,9 +284,9 @@ struct LiveSessionView: View {
             }
 
             if entryMode == .pinDeck, let rack = entry.rack {
-                // 2nd ball onward: the deck carries over the leave (those pins stay
-                // highlighted as standing) and the bowler taps the ones they knocked down.
-                let knockDown = entry.ballIndex >= 1
+                // A partial leave carries over highlighted (tap the pins you knocked down);
+                // a full fresh rack behaves like a first ball (tap the pins left standing).
+                let knockDown = rack.count < 10
 
                 PinDeckView(available: rack, standingAfter: $standingSelection)
                     .frame(maxWidth: 340, maxHeight: deckHeight)
@@ -318,10 +334,15 @@ struct LiveSessionView: View {
         .onChange(of: entryKey) { seedSelection(entry: entry) }
     }
 
-    /// On the 2nd ball the deck represents knocked-down pins, so it starts with every
-    /// remaining pin standing (nothing knocked). The 1st ball starts empty (strike-ready).
+    /// A partial leave (rack < 10) starts with those pins standing (highlighted) so the
+    /// bowler taps the ones knocked down. A full fresh rack — the 1st ball, or a 10th-frame
+    /// reset after a strike/spare — starts empty (unhighlighted), like a brand-new first ball.
     private func seedSelection(entry: EntryContext) {
-        standingSelection = entry.ballIndex >= 1 ? (entry.rack ?? .empty) : .empty
+        if let rack = entry.rack, rack.count < 10 {
+            standingSelection = rack
+        } else {
+            standingSelection = .empty
+        }
     }
 
     private func pinCommitLabel(entry: EntryContext, rack: PinSet) -> String {
@@ -351,6 +372,8 @@ struct LiveSessionView: View {
         let frame = Frame()
         frame.number = entry.frameIndex + 1
         frame.game = game
+        // Each frame stores its own ball, carried forward from the prior frame.
+        frame.ballID = ballInHand(game: game)
         context.insert(frame)
         return frame
     }

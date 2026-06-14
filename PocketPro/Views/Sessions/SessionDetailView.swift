@@ -281,10 +281,14 @@ struct SessionDetailView: View {
             if let name = ballName(game.ballID) {
                 rows.append(("G\(game.orderIndex + 1)", name, nil))
             }
-            for frame in game.sortedFrames where frame.ballID != nil && frame.ballID != game.ballID {
-                if let name = ballName(frame.ballID) {
+            // Each frame carries its own ball; log only the frames where it changed.
+            var previous = game.ballID
+            for frame in game.sortedFrames {
+                guard let ballID = frame.ballID, ballID != previous else { continue }
+                if let name = ballName(ballID) {
                     rows.append(("G\(game.orderIndex + 1) · F\(frame.number)", name, frame.ballSwapReason))
                 }
+                previous = ballID
             }
         }
         return rows
