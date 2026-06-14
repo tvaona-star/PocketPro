@@ -18,6 +18,7 @@ struct SessionsTabView: View {
     @State private var practiceExpanded = true
     @State private var deleteLeagueCandidate: String?
     @State private var deleteTournamentCandidate: String?
+    @State private var deleteSessionCandidate: Session?
 
     private var importReviewCount: Int {
         allSessions.filter { $0.importedFromPinPal && $0.needsTypeReview }.count
@@ -287,6 +288,20 @@ struct SessionsTabView: View {
             } message: { name in
                 Text("Permanently removes \(name) and every event block and game in it. To keep the data for stats but hide it here, use Archive instead.")
             }
+            .confirmationDialog(
+                "Delete this practice session?",
+                isPresented: Binding(get: { deleteSessionCandidate != nil }, set: { if !$0 { deleteSessionCandidate = nil } }),
+                titleVisibility: .visible,
+                presenting: deleteSessionCandidate
+            ) { session in
+                Button("Delete session", role: .destructive) {
+                    context.delete(session)
+                    deleteSessionCandidate = nil
+                }
+                Button("Cancel", role: .cancel) { deleteSessionCandidate = nil }
+            } message: { _ in
+                Text("Permanently removes this session and its games. To keep it for stats but hide it here, use Archive instead.")
+            }
         }
     }
 
@@ -473,7 +488,7 @@ struct SessionsTabView: View {
         .listRowInsets(EdgeInsets(top: 5, leading: 16, bottom: 5, trailing: 16))
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             Button(role: .destructive) {
-                context.delete(session)
+                deleteSessionCandidate = session
             } label: { Label("Delete", systemImage: "trash") }
             if archived {
                 Button {

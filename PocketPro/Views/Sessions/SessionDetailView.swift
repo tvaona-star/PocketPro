@@ -37,12 +37,10 @@ struct SessionDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
+                Button("Edit") { showingEdit = true }
+            }
+            ToolbarItem(placement: .topBarTrailing) {
                 Menu {
-                    Button {
-                        showingEdit = true
-                    } label: {
-                        Label("Edit session", systemImage: "pencil")
-                    }
                     if session.needsTypeReview {
                         Button("Mark type as reviewed") {
                             session.needsTypeReview = false

@@ -184,6 +184,7 @@ struct LeagueDetailView: View {
 
     @State private var bowlingSession: Session?
     @State private var showingEdit = false
+    @State private var weekToDelete: Session?
 
     private var event: LeagueEvent? {
         leagueEvents.first { $0.kind == .league && $0.name.caseInsensitiveCompare(leagueName) == .orderedSame }
@@ -229,20 +230,24 @@ struct LeagueDetailView: View {
             } else {
                 Section("Weeks (\(weeks.count))") {
                     ForEach(weeks) { week in
-                        if week.isActive {
-                            // In-progress week — tap to resume live scoring.
-                            Button { bowlingSession = week } label: { weekRow(week) }
-                                .buttonStyle(.plain)
-                        } else {
-                            NavigationLink {
-                                SessionDetailView(session: week)
-                            } label: {
-                                weekRow(week)
+                        Group {
+                            if week.isActive {
+                                // In-progress week — tap to resume live scoring.
+                                Button { bowlingSession = week } label: { weekRow(week) }
+                                    .buttonStyle(.plain)
+                            } else {
+                                NavigationLink {
+                                    SessionDetailView(session: week)
+                                } label: {
+                                    weekRow(week)
+                                }
                             }
                         }
-                    }
-                    .onDelete { offsets in
-                        for index in offsets { context.delete(weeks[index]) }
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button(role: .destructive) { weekToDelete = week } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                        }
                     }
                 }
             }
@@ -271,12 +276,26 @@ struct LeagueDetailView: View {
                     }
             }
         }
+        .confirmationDialog(
+            "Delete this week?",
+            isPresented: Binding(get: { weekToDelete != nil }, set: { if !$0 { weekToDelete = nil } }),
+            titleVisibility: .visible,
+            presenting: weekToDelete
+        ) { week in
+            Button("Delete week", role: .destructive) {
+                context.delete(week)
+                weekToDelete = nil
+            }
+            Button("Cancel", role: .cancel) { weekToDelete = nil }
+        } message: { _ in
+            Text("Permanently removes this week and its games.")
+        }
     }
 
     private var headerCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 16) {
-                stat(average.map { Notation.oneDecimal($0) } ?? "—", "Average")
+                stat(average.map { Notation.oneDecimal($0) } ?? "—", "AVG")
                 stat("\(weeks.count)", "Weeks")
                 stat("\(event?.gamesPerWeek ?? 3)", "Games/wk")
             }
@@ -423,6 +442,7 @@ struct TournamentDetailView: View {
     @State private var showingEdit = false
     @State private var renameTarget: Session?
     @State private var renameText = ""
+    @State private var blockToDelete: Session?
 
     private var event: LeagueEvent? {
         leagueEvents.first { $0.kind == .tournament && $0.name.caseInsensitiveCompare(tournamentName) == .orderedSame }
@@ -487,9 +507,11 @@ struct TournamentDetailView: View {
                             } label: { Label("Rename", systemImage: "pencil") }
                             .tint(Theme.accent)
                         }
-                    }
-                    .onDelete { offsets in
-                        for index in offsets { context.delete(blocks[index]) }
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button(role: .destructive) { blockToDelete = block } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                        }
                     }
                 }
             }
@@ -521,6 +543,20 @@ struct TournamentDetailView: View {
             }
             Button("Cancel", role: .cancel) { renameTarget = nil }
         }
+        .confirmationDialog(
+            "Delete this block?",
+            isPresented: Binding(get: { blockToDelete != nil }, set: { if !$0 { blockToDelete = nil } }),
+            titleVisibility: .visible,
+            presenting: blockToDelete
+        ) { block in
+            Button("Delete block", role: .destructive) {
+                context.delete(block)
+                blockToDelete = nil
+            }
+            Button("Cancel", role: .cancel) { blockToDelete = nil }
+        } message: { _ in
+            Text("Permanently removes this block and its games.")
+        }
         .fullScreenCover(item: $bowlingSession) { session in
             NavigationStack {
                 LiveSessionView(session: session, onEnd: { bowlingSession = nil })
@@ -538,7 +574,7 @@ struct TournamentDetailView: View {
     private var headerCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 16) {
-                stat(average.map { Notation.oneDecimal($0) } ?? "—", "Average")
+                stat(average.map { Notation.oneDecimal($0) } ?? "—", "AVG")
                 stat("\(blocks.count)", "Blocks")
                 stat("\(blocks.flatMap { $0.sortedGames }.count)", "Games")
             }
