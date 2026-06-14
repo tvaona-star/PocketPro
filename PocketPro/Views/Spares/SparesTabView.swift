@@ -80,18 +80,24 @@ struct SparesTabView: View {
         games.contains { !$0.leaves.isEmpty }
     }
 
+    /// League/tournament names sorted by most recent event date (newest first).
     private func eventNames(for type: SessionType) -> [String] {
-        var seen = Set<String>()
-        var out: [String] = []
+        var display: [String: String] = [:]
+        var latest: [String: Date] = [:]
         for s in allSessions where !s.isActive && s.type == type {
-            if let n = s.leagueName ?? s.eventName, !n.isEmpty, seen.insert(n.lowercased()).inserted {
-                out.append(n)
-            }
+            guard let n = s.leagueName ?? s.eventName, !n.isEmpty else { continue }
+            let key = n.lowercased()
+            if display[key] == nil { display[key] = n }
+            if s.date > (latest[key] ?? .distantPast) { latest[key] = s.date }
         }
         for e in leagueEvents where e.kind.sessionType == type && !e.isArchived && !e.name.isEmpty {
-            if seen.insert(e.name.lowercased()).inserted { out.append(e.name) }
+            let key = e.name.lowercased()
+            if display[key] == nil { display[key] = e.name }
+            if latest[key] == nil { latest[key] = e.startDate ?? .distantPast }
         }
-        return out.sorted()
+        return display.keys
+            .sorted { (latest[$0] ?? .distantPast) > (latest[$1] ?? .distantPast) }
+            .compactMap { display[$0] }
     }
 
     private var leagueNames: [String] { eventNames(for: .league) }

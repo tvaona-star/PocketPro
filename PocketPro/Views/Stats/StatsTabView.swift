@@ -34,9 +34,6 @@ struct StatsTabView: View {
         var id: String { rawValue }
     }
 
-    /// Minimum games before stats display (PRD 7.4).
-    private let statThreshold = 5
-
     private var season: SeasonDefinition {
         SeasonDefinition(rawValue: seasonRaw) ?? .usbc
     }
@@ -100,19 +97,25 @@ struct StatsTabView: View {
             }
     }
 
+    /// League/tournament names for the filter, sorted by most recent event date
+    /// (newest first) rather than alphabetically.
     private func eventNames(for type: SessionType) -> [String] {
-        var seen = Set<String>()
-        var out: [String] = []
+        var display: [String: String] = [:]   // key: lowercased name → display name
+        var latest: [String: Date] = [:]       // key → most recent date
         for session in allSessions where !session.isActive && session.type == type {
-            if let name = session.leagueName ?? session.eventName, !name.isEmpty,
-               seen.insert(name.lowercased()).inserted {
-                out.append(name)
-            }
+            guard let name = session.leagueName ?? session.eventName, !name.isEmpty else { continue }
+            let key = name.lowercased()
+            if display[key] == nil { display[key] = name }
+            if session.date > (latest[key] ?? .distantPast) { latest[key] = session.date }
         }
         for event in leagueEvents where event.kind.sessionType == type && !event.isArchived && !event.name.isEmpty {
-            if seen.insert(event.name.lowercased()).inserted { out.append(event.name) }
+            let key = event.name.lowercased()
+            if display[key] == nil { display[key] = event.name }
+            if latest[key] == nil { latest[key] = event.startDate ?? .distantPast }
         }
-        return out.sorted()
+        return display.keys
+            .sorted { (latest[$0] ?? .distantPast) > (latest[$1] ?? .distantPast) }
+            .compactMap { display[$0] }
     }
 
     private var leagueNames: [String] { eventNames(for: .league) }
@@ -168,7 +171,8 @@ struct StatsTabView: View {
                     filterBar
 
                     let stats = StatsEngine.dashboard(games: games)
-                    let belowThreshold = stats.gamesCount < statThreshold
+                    // Stats show from the very first game — only masked when there's no data.
+                    let belowThreshold = stats.gamesCount == 0
 
                     if conditionActive {
                         conditionBanner
@@ -184,7 +188,7 @@ struct StatsTabView: View {
                     }
 
                     if belowThreshold {
-                        Text("Bowl more sessions to populate your stats — \(stats.gamesCount) of \(statThreshold) games.")
+                        Text("No games match these filters yet.")
                             .font(Theme.cardSubtitle)
                             .foregroundStyle(Theme.textMuted)
                             .frame(maxWidth: .infinity, alignment: .center)

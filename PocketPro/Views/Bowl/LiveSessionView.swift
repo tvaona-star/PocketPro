@@ -17,6 +17,7 @@ struct LiveSessionView: View {
     @State private var showingEndOfGame = false
     @State private var showingBallSwap = false
     @State private var showingSessionNote = false
+    @State private var showingSessionStats = false
     @State private var noteFrame: Frame?
     @State private var endedGame: Game?
     /// Tapped frame whose individual shots are being chosen for editing. Picking a
@@ -33,6 +34,14 @@ struct LiveSessionView: View {
 
     private var game: Game? {
         session.sortedGames.last
+    }
+
+    /// Completed games in this session/block, for the running series total.
+    private var completedGames: [Game] {
+        session.sortedGames.filter { $0.isComplete }
+    }
+    private var seriesTotal: Int {
+        completedGames.map { $0.finalScore }.reduce(0, +)
     }
 
     var body: some View {
@@ -86,6 +95,10 @@ struct LiveSessionView: View {
             BallSwapSheet(session: session, game: game, arsenal: arsenal, targetFrame: editingFrame)
                 .presentationDetents([.medium])
         }
+        .sheet(isPresented: $showingSessionStats) {
+            SessionStatsSheet(session: session)
+                .presentationDetents([.large])
+        }
         .sheet(item: $noteFrame) { frame in
             FrameNoteSheet(frame: frame)
                 .presentationDetents([.medium, .large])
@@ -124,11 +137,29 @@ struct LiveSessionView: View {
                 Text(session.title)
                     .font(.system(size: 22, weight: .bold))
                     .foregroundStyle(Theme.textPrimary)
-                Text("Game \(session.sortedGames.count)")
-                    .font(Theme.cardSubtitle)
-                    .foregroundStyle(Theme.textSecondary)
+                HStack(spacing: 8) {
+                    Text("Game \(session.sortedGames.count)")
+                        .font(Theme.cardSubtitle)
+                        .foregroundStyle(Theme.textSecondary)
+                    if !completedGames.isEmpty {
+                        Text("Series \(seriesTotal)")
+                            .font(.system(size: 13, weight: .bold).monospacedDigit())
+                            .foregroundStyle(Theme.accent)
+                        Text("· \(completedGames.count) game\(completedGames.count == 1 ? "" : "s")")
+                            .font(.system(size: 12))
+                            .foregroundStyle(Theme.textMuted)
+                    }
+                }
             }
             Spacer()
+            // View this session/block's stats so far.
+            Button {
+                showingSessionStats = true
+            } label: {
+                Image(systemName: "chart.bar")
+                    .font(.system(size: 19))
+                    .foregroundStyle(Theme.textSecondary)
+            }
             // One-tap session note (PRD 7.5).
             Button {
                 showingSessionNote = true
@@ -584,6 +615,78 @@ struct DirectEntryPad: View {
                 .buttonStyle(.plain)
                 .disabled(count > maxPins)
             }
+        }
+    }
+}
+
+// MARK: - In-session stats (PRD 5.3: quick dashboard for the current block/session)
+
+/// The current session/block's stats so far — opened from the scoring view.
+struct SessionStatsSheet: View {
+    let session: Session
+    @Environment(\.dismiss) private var dismiss
+
+    private var games: [GameRecord] { session.gameRecords() }
+
+    private var seriesTotal: Int {
+        session.sortedGames.filter { $0.isComplete }.map { $0.finalScore }.reduce(0, +)
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                let stats = StatsEngine.dashboard(games: games)
+                VStack(alignment: .leading, spacing: 14) {
+                    HStack(spacing: 16) {
+                        headlineTile("Series", "\(seriesTotal)")
+                        headlineTile("Games", "\(stats.gamesCount)")
+                        headlineTile("Average", stats.average.map { Notation.oneDecimal($0) } ?? "--")
+                    }
+                    .card()
+
+                    if stats.gamesCount == 0 {
+                        Text("No completed games yet — finish a game to see stats.")
+                            .font(Theme.cardSubtitle)
+                            .foregroundStyle(Theme.textMuted)
+                            .frame(maxWidth: .infinity, alignment: .center)
+                            .padding(.top, 30)
+                    } else {
+                        primaryGrid(stats)
+                        SpareBreakdownPanel(games: games)
+                        StrikeClustersPanel(stats: stats, sessions: [session])
+                    }
+                }
+                .padding()
+            }
+            .background(Theme.bgPrimary)
+            .navigationTitle(session.title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } }
+            }
+        }
+    }
+
+    private func headlineTile(_ label: String, _ value: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(value)
+                .font(Theme.statNumber(26))
+                .foregroundStyle(Theme.textPrimary)
+            Text(label.uppercased())
+                .font(Theme.statLabel)
+                .foregroundStyle(Theme.textSecondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func primaryGrid(_ stats: DashboardStats) -> some View {
+        let columns = Array(repeating: GridItem(.flexible(), spacing: 10), count: 2)
+        func pct(_ value: Double?) -> String { value.map { String(format: "%.1f%%", $0) } ?? "--" }
+        return LazyVGrid(columns: columns, spacing: 10) {
+            StatTile(label: "Strike %", value: pct(stats.strikePercent))
+            StatTile(label: "Spare %", value: pct(stats.sparePercent))
+            StatTile(label: "Split %", value: pct(stats.splitPercent))
+            StatTile(label: "Open Frame %", value: pct(stats.openFramePercent))
         }
     }
 }
