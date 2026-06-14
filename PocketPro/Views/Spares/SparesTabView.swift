@@ -14,8 +14,11 @@ struct SparesTabView: View {
     @State private var leagueFilter: Set<String> = []
     @State private var showingLeaguePicker = false
     @State private var dateRange: StatDateRange = .thisSeason
-    @State private var ballFilter: UUID?
-    @State private var patternFilter: UUID?
+    @State private var ballFilter: Set<UUID> = []
+    @State private var patternFilter: Set<UUID> = []
+    @State private var conditionFilter: PatternCondition = .all
+    @State private var showingBallPicker = false
+    @State private var showingPatternPicker = false
     @State private var bucketFilter: SpareBucket?
     @State private var heatmapPin: Int?
     @State private var viewMode: ViewMode = .list
@@ -40,19 +43,28 @@ struct SparesTabView: View {
         }
     }
 
+    /// League/tournament names flagged sport-pattern — drives the House/Sport filter.
+    private var sportNames: Set<String> {
+        Set(leagueEvents.filter { $0.isSport }.map { $0.name.lowercased() })
+    }
+
     private func sessionMatchesFilters(_ session: Session) -> Bool {
         if session.isActive { return false }
         if let typeFilter, session.type != typeFilter { return false }
-        if !leagueFilter.isEmpty {
-            let name = (session.leagueName ?? session.eventName ?? "").lowercased()
-            if !leagueFilter.contains(name) { return false }
+        let name = (session.leagueName ?? session.eventName ?? "").lowercased()
+        if !leagueFilter.isEmpty, !leagueFilter.contains(name) { return false }
+        if conditionFilter != .all {
+            let isSport = sportNames.contains(name)
+            if (conditionFilter == .sport) != isSport { return false }
         }
         return true
     }
 
     private func gameMatchesFilters(_ game: GameRecord) -> Bool {
-        if let ballFilter, !game.ballIDs.contains(ballFilter) { return false }
-        if let patternFilter, game.patternID != patternFilter { return false }
+        if !ballFilter.isEmpty && ballFilter.isDisjoint(with: Set(game.ballIDs)) { return false }
+        if !patternFilter.isEmpty {
+            guard let id = game.patternID, patternFilter.contains(id) else { return false }
+        }
         return true
     }
 
@@ -122,6 +134,27 @@ struct SparesTabView: View {
         return Array(byID.values).sorted { $0.name < $1.name }
     }
 
+    private func patternLabel(_ pattern: Pattern) -> String {
+        pattern.name.isEmpty ? pattern.summary : pattern.name
+    }
+
+    private var ballFilterLabel: String {
+        if ballFilter.isEmpty { return "Ball" }
+        if ballFilter.count == 1, let id = ballFilter.first {
+            return arsenal.first { $0.id == id }?.displayName ?? "1 ball"
+        }
+        return "\(ballFilter.count) balls"
+    }
+
+    private var patternFilterLabel: String {
+        if patternFilter.isEmpty { return "Pattern" }
+        if patternFilter.count == 1, let id = patternFilter.first,
+           let pattern = patterns.first(where: { $0.id == id }) {
+            return patternLabel(pattern)
+        }
+        return "\(patternFilter.count) patterns"
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -172,6 +205,22 @@ struct SparesTabView: View {
                 LeagueFilterSheet(leagues: activeLeagueNames, tournaments: tournamentNames, archivedLeagues: archivedLeagueNames, selection: $leagueFilter)
                     .presentationDetents([.medium, .large])
             }
+            .sheet(isPresented: $showingBallPicker) {
+                IDFilterSheet(
+                    title: "Filter by Ball",
+                    options: arsenal.map { FilterOption(id: $0.id, label: $0.displayName) },
+                    selection: $ballFilter
+                )
+                .presentationDetents([.medium, .large])
+            }
+            .sheet(isPresented: $showingPatternPicker) {
+                IDFilterSheet(
+                    title: "Filter by Pattern",
+                    options: patterns.map { FilterOption(id: $0.id, label: patternLabel($0)) },
+                    selection: $patternFilter
+                )
+                .presentationDetents([.medium, .large])
+            }
         }
     }
 
@@ -203,29 +252,24 @@ struct SparesTabView: View {
                     } label: {
                         menuPill(dateRange.displayName, active: dateRange != .allTime)
                     }
+                    Button { showingBallPicker = true } label: {
+                        menuPill(ballFilterLabel, active: !ballFilter.isEmpty)
+                    }
+                    .buttonStyle(.plain)
+
+                    if !patterns.isEmpty {
+                        Button { showingPatternPicker = true } label: {
+                            menuPill(patternFilterLabel, active: !patternFilter.isEmpty)
+                        }
+                        .buttonStyle(.plain)
+                    }
+
                     Menu {
-                        Button("Any ball") { ballFilter = nil }
-                        ForEach(arsenal) { ball in
-                            Button(ball.displayName) { ballFilter = ball.id }
+                        ForEach(PatternCondition.allCases) { condition in
+                            Button(condition.rawValue) { conditionFilter = condition }
                         }
                     } label: {
-                        menuPill(
-                            ballFilter.flatMap { id in arsenal.first { $0.id == id }?.displayName } ?? "Any ball",
-                            active: ballFilter != nil
-                        )
-                    }
-                    if !patterns.isEmpty {
-                        Menu {
-                            Button("Any pattern") { patternFilter = nil }
-                            ForEach(patterns) { pattern in
-                                Button(pattern.name.isEmpty ? pattern.summary : pattern.name) { patternFilter = pattern.id }
-                            }
-                        } label: {
-                            menuPill(
-                                patternFilter.flatMap { id in patterns.first { $0.id == id }.map { $0.name.isEmpty ? $0.summary : $0.name } } ?? "Pattern",
-                                active: patternFilter != nil
-                            )
-                        }
+                        menuPill(conditionFilter == .all ? "House/Sport" : conditionFilter.rawValue, active: conditionFilter != .all)
                     }
                 }
             }

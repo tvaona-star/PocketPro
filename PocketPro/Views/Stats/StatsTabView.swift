@@ -2,6 +2,14 @@ import SwiftUI
 import SwiftData
 import PocketProCore
 
+/// House vs sport-pattern condition filter, shared by the Stats and Spares tabs.
+enum PatternCondition: String, CaseIterable, Identifiable {
+    case all = "All"
+    case house = "House"
+    case sport = "Sport"
+    var id: String { rawValue }
+}
+
 /// Stats tab (PRD 5.3): PBA-broadcast dashboard. All stats filter by session type,
 /// date range, and optionally ball + pattern (condition compare).
 struct StatsTabView: View {
@@ -26,13 +34,6 @@ struct StatsTabView: View {
     @State private var showingPatternPicker = false
     @State private var showingCompare = false
     @State private var conditionFilter: PatternCondition = .all
-
-    enum PatternCondition: String, CaseIterable, Identifiable {
-        case all = "All"
-        case house = "House"
-        case sport = "Sport"
-        var id: String { rawValue }
-    }
 
     private var season: SeasonDefinition {
         SeasonDefinition(rawValue: seasonRaw) ?? .usbc
