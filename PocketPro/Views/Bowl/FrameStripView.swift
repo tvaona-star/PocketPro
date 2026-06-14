@@ -51,6 +51,8 @@ struct FrameStripView: View {
     @ViewBuilder
     private func frameCell(number: Int, frame: Frame?, cumulative: Int?, isCurrent: Bool) -> some View {
         let symbols = ballSymbols(number: number, counts: frame?.counts ?? [])
+        // Scoresheet convention: circle the first-ball count when it left a split.
+        let split = isSplitFrame(frame)
 
         VStack(spacing: 0) {
             Text("\(number)")
@@ -59,12 +61,19 @@ struct FrameStripView: View {
                 .padding(.bottom, 2)
 
             HStack(spacing: 1) {
-                ForEach(Array(symbols.enumerated()), id: \.offset) { _, symbol in
+                ForEach(Array(symbols.enumerated()), id: \.offset) { index, symbol in
                     Text(symbol)
                         .font(.system(size: 13, weight: .bold).monospacedDigit())
                         .foregroundStyle(Theme.textPrimary)
                         .frame(width: 15, height: 18)
                         .background(Theme.bgElevated)
+                        .overlay {
+                            if index == 0 && split {
+                                Circle()
+                                    .strokeBorder(Theme.destructive, lineWidth: 1.5)
+                                    .frame(width: 17, height: 17)
+                            }
+                        }
                 }
             }
 
@@ -98,6 +107,15 @@ struct FrameStripView: View {
                 onLongPressFrame?(frame)
             }
         }
+    }
+
+    /// True when the frame's first ball left a split (uses the recorded pin identity;
+    /// false for strikes, direct-score entry, or no leave).
+    private func isSplitFrame(_ frame: Frame?) -> Bool {
+        guard let frame, let first = frame.balls.first,
+              first.count < 10,
+              let mask = first.standingAfterMask, mask != 0 else { return false }
+        return LeaveClassifier.classify(PinSet(mask: mask)).categories.contains(.split)
     }
 
     /// Scorecard symbols. Frames 1-9: two cells; tenth: three cells.
