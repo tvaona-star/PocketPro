@@ -127,8 +127,14 @@ struct ArsenalChartView: View {
             BallDetailView(ball: ball)
         }
         .sheet(isPresented: $showingBallPicker) {
-            ChartBallPickerSheet(balls: balls, selection: $filterBallIDs)
-                .presentationDetents([.medium, .large])
+            IDFilterSheet(
+                title: "Filter Balls",
+                options: balls
+                    .sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
+                    .map { FilterOption(id: $0.id, label: $0.displayName, color: Theme.coverstockColor($0.coverstockType)) },
+                selection: $filterBallIDs
+            )
+            .presentationDetents([.medium, .large])
         }
     }
 
@@ -256,57 +262,6 @@ struct ArsenalChartView: View {
                     Text(type.displayName)
                         .font(.system(size: 11))
                         .foregroundStyle(Theme.textSecondary)
-                }
-            }
-        }
-    }
-}
-
-/// Multi-select list of balls to plot (PRD 5.4.10 chart filter).
-private struct ChartBallPickerSheet: View {
-    let balls: [Ball]
-    @Binding var selection: Set<UUID>
-    @Environment(\.dismiss) private var dismiss
-
-    private var sortedBalls: [Ball] {
-        balls.sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
-    }
-
-    var body: some View {
-        NavigationStack {
-            List {
-                ForEach(sortedBalls) { ball in
-                    Button {
-                        if selection.contains(ball.id) {
-                            selection.remove(ball.id)
-                        } else {
-                            selection.insert(ball.id)
-                        }
-                    } label: {
-                        HStack(spacing: 12) {
-                            Image(systemName: "circle.fill")
-                                .font(.system(size: 10))
-                                .foregroundStyle(Theme.coverstockColor(ball.coverstockType))
-                            Text(ball.displayName)
-                                .foregroundStyle(Theme.textPrimary)
-                            Spacer()
-                            if selection.contains(ball.id) {
-                                Image(systemName: "checkmark")
-                                    .foregroundStyle(Theme.accent)
-                            }
-                        }
-                    }
-                }
-            }
-            .navigationTitle("Filter Balls")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Clear") { selection = [] }
-                        .disabled(selection.isEmpty)
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { dismiss() }
                 }
             }
         }

@@ -476,6 +476,8 @@ struct LeagueFilterSheet: View {
 struct FilterOption: Identifiable {
     let id: UUID
     let label: String
+    /// Optional leading dot (e.g. a ball's coverstock color).
+    var color: Color? = nil
 }
 
 /// Generic multi-select filter sheet keyed by UUID (balls, patterns).
@@ -503,7 +505,12 @@ struct IDFilterSheet: View {
                                 selection.insert(option.id)
                             }
                         } label: {
-                            HStack {
+                            HStack(spacing: 10) {
+                                if let color = option.color {
+                                    Image(systemName: "circle.fill")
+                                        .font(.system(size: 10))
+                                        .foregroundStyle(color)
+                                }
                                 Text(option.label).foregroundStyle(Theme.textPrimary)
                                 Spacer()
                                 if selection.contains(option.id) {

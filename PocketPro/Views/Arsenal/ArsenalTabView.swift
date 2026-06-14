@@ -260,7 +260,7 @@ struct BallCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Button {
-                withAnimation(.easeInOut(duration: 0.2)) { expanded.toggle() }
+                withAnimation(Theme.sectionSpring) { expanded.toggle() }
             } label: {
                 header
             }
@@ -298,7 +298,7 @@ struct BallCard: View {
             Text("\(ball.weight) lb")
                 .font(.system(size: 14, weight: .bold).monospacedDigit())
                 .foregroundStyle(Theme.textSecondary)
-            Image(systemName: expanded ? "chevron.up" : "chevron.down")
+            Image(systemName: expanded ? "chevron.down" : "chevron.right")
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(Theme.textMuted)
         }

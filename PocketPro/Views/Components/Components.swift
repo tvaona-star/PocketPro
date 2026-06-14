@@ -187,10 +187,9 @@ struct SectionCard<Preview: View, Content: View>: View {
                             .foregroundStyle(Theme.textSecondary)
                     }
                     Spacer(minLength: 8)
-                    Image(systemName: "chevron.down")
+                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(Theme.textMuted)
-                        .rotationEffect(.degrees(isExpanded ? 180 : 0))
                 }
                 .contentShape(Rectangle())
             }
