@@ -684,7 +684,7 @@ struct SessionStatsSheet: View {
         func pct(_ value: Double?) -> String { value.map { String(format: "%.1f%%", $0) } ?? "--" }
         return LazyVGrid(columns: columns, spacing: 10) {
             StatTile(label: "Strike %", value: pct(stats.strikePercent))
-            StatTile(label: "Spare %", value: pct(stats.sparePercent))
+            StatTile(label: "Makeable Spare %", value: pct(stats.makeableSparePercent))
             StatTile(label: "Split %", value: pct(stats.splitPercent))
             StatTile(label: "Open Frame %", value: pct(stats.openFramePercent))
         }
