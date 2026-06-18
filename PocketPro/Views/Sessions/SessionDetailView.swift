@@ -14,6 +14,8 @@ struct SessionDetailView: View {
     @State private var showingDeleteConfirm = false
     @State private var showingEdit = false
     @State private var showingMerge = false
+    @State private var showingStats = false
+    @State private var resumeGame = false
 
     var body: some View {
         ScrollView {
@@ -37,10 +39,18 @@ struct SessionDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
+                Button { showingStats = true } label: { Image(systemName: "chart.bar") }
+            }
+            ToolbarItem(placement: .topBarTrailing) {
                 Button("Edit") { showingEdit = true }
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
+                    Button {
+                        addGame()
+                    } label: {
+                        Label("Add a game", systemImage: "plus")
+                    }
                     if session.needsTypeReview {
                         Button("Mark type as reviewed") {
                             session.needsTypeReview = false
@@ -60,6 +70,22 @@ struct SessionDetailView: View {
                 } label: {
                     Image(systemName: "ellipsis.circle")
                 }
+            }
+        }
+        .sheet(isPresented: $showingStats) {
+            SessionStatsSheet(session: session)
+                .presentationDetents([.large])
+        }
+        .fullScreenCover(isPresented: $resumeGame) {
+            NavigationStack {
+                LiveSessionView(session: session, onEnd: { resumeGame = false })
+                    .navigationTitle(session.title)
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .topBarLeading) {
+                            Button("Done for now") { resumeGame = false }
+                        }
+                    }
             }
         }
         .sheet(isPresented: $showingEdit) {
@@ -85,6 +111,18 @@ struct SessionDetailView: View {
             FrameNoteSheet(frame: frame)
                 .presentationDetents([.medium, .large])
         }
+    }
+
+    /// Re-open the session for another game (e.g. after accidentally ending it) and
+    /// jump into live scoring. Ending the game flips it back to completed.
+    private func addGame() {
+        session.isActive = true
+        let next = Game()
+        next.orderIndex = (session.sortedGames.map { $0.orderIndex }.max() ?? -1) + 1
+        next.session = session
+        next.ballID = session.sortedGames.last?.ballID
+        context.insert(next)
+        resumeGame = true
     }
 
     /// Move this session's games into `target` (appended after its games) and remove
