@@ -184,10 +184,27 @@ struct LeagueDetailView: View {
 
     @State private var bowlingSession: Session?
     @State private var showingEdit = false
+    @State private var showingMerge = false
     @State private var weekToDelete: Session?
 
     private var event: LeagueEvent? {
         leagueEvents.first { $0.kind == .league && $0.name.caseInsensitiveCompare(leagueName) == .orderedSame }
+    }
+
+    /// Other league names this league could merge into.
+    private var otherLeagueNames: [String] {
+        var names: [String] = []
+        var seen = Set<String>()
+        for s in allSessions where s.type == .league {
+            if let n = s.leagueName, !n.isEmpty,
+               n.caseInsensitiveCompare(leagueName) != .orderedSame,
+               seen.insert(n.lowercased()).inserted { names.append(n) }
+        }
+        for e in leagueEvents where e.kind == .league && !e.name.isEmpty
+            && e.name.caseInsensitiveCompare(leagueName) != .orderedSame {
+            if seen.insert(e.name.lowercased()).inserted { names.append(e.name) }
+        }
+        return names.sorted()
     }
 
     private var weeks: [Session] {
@@ -258,10 +275,27 @@ struct LeagueDetailView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Edit") { showingEdit = true }
             }
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button {
+                        showingMerge = true
+                    } label: {
+                        Label("Merge into another league", systemImage: "arrow.triangle.merge")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
+            }
         }
         .sheet(isPresented: $showingEdit) {
             LeagueEditSheet(leagueName: leagueName, existing: event, onConverted: { dismiss() })
                 .presentationDetents([.medium])
+        }
+        .sheet(isPresented: $showingMerge) {
+            MergeGroupSheet(noun: "league", sourceName: leagueName, candidates: otherLeagueNames) { target in
+                mergeLeague(into: target)
+            }
+            .presentationDetents([.medium, .large])
         }
         .fullScreenCover(item: $bowlingSession) { session in
             NavigationStack {
@@ -357,6 +391,25 @@ struct LeagueDetailView: View {
         .padding(.vertical, 2)
     }
 
+    /// Move every week of this league into `targetName` and drop this league's record.
+    private func mergeLeague(into targetName: String) {
+        let target = leagueEvents.first {
+            $0.kind == .league && $0.name.caseInsensitiveCompare(targetName) == .orderedSame
+        } ?? {
+            let e = LeagueEvent()
+            e.name = targetName
+            e.kind = .league
+            context.insert(e)
+            return e
+        }()
+        for week in weeks {
+            week.leagueName = targetName
+            week.leagueEvent = target
+        }
+        if let event { context.delete(event) }
+        dismiss()
+    }
+
     private func addWeek() {
         // Resume an in-progress week instead of starting a duplicate.
         if let active = weeks.first(where: { $0.isActive }) {
@@ -443,9 +496,26 @@ struct TournamentDetailView: View {
     @State private var renameTarget: Session?
     @State private var renameText = ""
     @State private var blockToDelete: Session?
+    @State private var showingMerge = false
 
     private var event: LeagueEvent? {
         leagueEvents.first { $0.kind == .tournament && $0.name.caseInsensitiveCompare(tournamentName) == .orderedSame }
+    }
+
+    /// Other tournament names this tournament could merge into.
+    private var otherTournamentNames: [String] {
+        var names: [String] = []
+        var seen = Set<String>()
+        for s in allSessions where s.type == .tournament {
+            if let n = s.eventName ?? s.leagueName, !n.isEmpty,
+               n.caseInsensitiveCompare(tournamentName) != .orderedSame,
+               seen.insert(n.lowercased()).inserted { names.append(n) }
+        }
+        for e in leagueEvents where e.kind == .tournament && !e.name.isEmpty
+            && e.name.caseInsensitiveCompare(tournamentName) != .orderedSame {
+            if seen.insert(e.name.lowercased()).inserted { names.append(e.name) }
+        }
+        return names.sorted()
     }
 
     private var blocks: [Session] {
@@ -522,10 +592,27 @@ struct TournamentDetailView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Edit") { showingEdit = true }
             }
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button {
+                        showingMerge = true
+                    } label: {
+                        Label("Merge into another tournament", systemImage: "arrow.triangle.merge")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
+            }
         }
         .sheet(isPresented: $showingEdit) {
             TournamentEditSheet(tournamentName: tournamentName, existing: event, onConverted: { dismiss() })
                 .presentationDetents([.medium])
+        }
+        .sheet(isPresented: $showingMerge) {
+            MergeGroupSheet(noun: "tournament", sourceName: tournamentName, candidates: otherTournamentNames) { target in
+                mergeTournament(into: target)
+            }
+            .presentationDetents([.medium, .large])
         }
         .alert("New Event Block", isPresented: $showingAddBlock) {
             TextField("Block name (e.g. Qualifying)", text: $newBlockName)
@@ -635,6 +722,26 @@ struct TournamentDetailView: View {
             }
         }
         .padding(.vertical, 2)
+    }
+
+    /// Move every block of this tournament into `targetName` and drop this record.
+    private func mergeTournament(into targetName: String) {
+        let target = leagueEvents.first {
+            $0.kind == .tournament && $0.name.caseInsensitiveCompare(targetName) == .orderedSame
+        } ?? {
+            let e = LeagueEvent()
+            e.name = targetName
+            e.kind = .tournament
+            context.insert(e)
+            return e
+        }()
+        for block in blocks {
+            block.eventName = targetName
+            block.leagueName = targetName
+            block.leagueEvent = target
+        }
+        if let event { context.delete(event) }
+        dismiss()
     }
 
     private func addBlock() {
@@ -772,5 +879,76 @@ struct TournamentEditSheet: View {
         event.kind = kind
         context.insert(event)
         return event
+    }
+}
+
+// MARK: - Merge a whole league / tournament into another (PRD 5.2)
+
+/// Picks a destination league or tournament to absorb the current one.
+struct MergeGroupSheet: View {
+    let noun: String          // "league" or "tournament"
+    let sourceName: String
+    let candidates: [String]
+    let onMerge: (String) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var confirmTarget: String?
+
+    private var childWord: String { noun == "league" ? "weeks" : "blocks" }
+    private var icon: String { noun == "league" ? "trophy.fill" : "flag.checkered" }
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if candidates.isEmpty {
+                    EmptyStateView(
+                        icon: "arrow.triangle.merge",
+                        title: "No other \(noun)s",
+                        message: "You need a second \(noun) to merge into."
+                    )
+                } else {
+                    List {
+                        Section {
+                            Text("Moves every one of \(sourceName)'s \(childWord) into the \(noun) you pick. \(sourceName) is then removed. Scores are kept.")
+                                .font(.system(size: 13))
+                                .foregroundStyle(Theme.textSecondary)
+                                .listRowBackground(Color.clear)
+                        }
+                        Section("Merge into") {
+                            ForEach(candidates, id: \.self) { name in
+                                Button { confirmTarget = name } label: {
+                                    HStack(spacing: 10) {
+                                        Image(systemName: icon)
+                                            .font(.system(size: 13))
+                                            .foregroundStyle(Theme.accent)
+                                        Text(name).foregroundStyle(Theme.textPrimary)
+                                        Spacer()
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Merge \(noun.capitalized)")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) { Button("Cancel") { dismiss() } }
+            }
+            .confirmationDialog(
+                "Merge into \(confirmTarget ?? "")?",
+                isPresented: Binding(get: { confirmTarget != nil }, set: { if !$0 { confirmTarget = nil } }),
+                titleVisibility: .visible,
+                presenting: confirmTarget
+            ) { target in
+                Button("Merge") {
+                    confirmTarget = nil
+                    dismiss()
+                    onMerge(target)
+                }
+                Button("Cancel", role: .cancel) { confirmTarget = nil }
+            } message: { target in
+                Text("\(sourceName)'s \(childWord) move into \(target).")
+            }
+        }
     }
 }
