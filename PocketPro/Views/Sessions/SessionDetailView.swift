@@ -16,6 +16,25 @@ struct SessionDetailView: View {
     @State private var showingMerge = false
     @State private var showingStats = false
     @State private var resumeGame = false
+    /// Leave classification is expensive; cache it and refresh only when scores
+    /// change, so sheet toggles and note typing don't re-run the classifier.
+    @State private var sessionLeaves: [LeaveRecord] = []
+
+    /// Cheap hash of every ball count — changes exactly when scores change.
+    private var scoreSignature: Int {
+        var hasher = Hasher()
+        for game in session.sortedGames {
+            for frame in game.sortedFrames {
+                for ball in frame.balls { hasher.combine(ball.count) }
+                hasher.combine(-1)
+            }
+        }
+        return hasher.finalize()
+    }
+
+    private func refreshLeaves() {
+        sessionLeaves = session.sortedGames.flatMap { $0.derivedLeaves() }
+    }
 
     var body: some View {
         ScrollView {
@@ -30,7 +49,7 @@ struct SessionDetailView: View {
                 ballLog
                 patternCard
                 spareSummary
-                noteCard
+                SessionNoteCard(session: session)
             }
             .padding()
         }
@@ -111,6 +130,8 @@ struct SessionDetailView: View {
             FrameNoteSheet(frame: frame)
                 .presentationDetents([.medium, .large])
         }
+        .onAppear { refreshLeaves() }
+        .onChange(of: scoreSignature) { refreshLeaves() }
     }
 
     /// Re-open the session for another game (e.g. after accidentally ending it) and
@@ -358,7 +379,7 @@ struct SessionDetailView: View {
 
     @ViewBuilder
     private var spareSummary: some View {
-        let leaves = session.sortedGames.flatMap { $0.derivedLeaves() }
+        let leaves = sessionLeaves
         if !leaves.isEmpty {
             let opportunities = leaves.filter { $0.hadOpportunity }
             let converted = opportunities.filter { $0.converted }
@@ -401,7 +422,14 @@ struct SessionDetailView: View {
         }
     }
 
-    private var noteCard: some View {
+}
+
+/// Standalone so typing a note only re-renders this card — not the parent's game
+/// cards, ball log, and spare list.
+private struct SessionNoteCard: View {
+    @Bindable var session: Session
+
+    var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Session Note")
                 .font(Theme.cardTitle)
