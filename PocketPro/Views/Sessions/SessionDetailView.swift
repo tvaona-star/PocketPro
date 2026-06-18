@@ -452,10 +452,8 @@ struct SessionEditSheet: View {
                     .pickerStyle(.segmented)
                     DatePicker("Date", selection: $date, displayedComponents: .date)
                 }
-                if type == .tournament {
-                    Section("Event Block") {
-                        TextField("Block name (e.g. Qualifying)", text: $blockName)
-                    }
+                Section(type == .tournament ? "Event Block" : "Session Name") {
+                    TextField(type == .tournament ? "Block name (e.g. Qualifying)" : "Name (optional)", text: $blockName)
                 }
                 if type == .league || type == .tournament {
                     Section(type == .league ? "League" : "Tournament") {
@@ -505,21 +503,20 @@ struct SessionEditSheet: View {
             let event = trimmed.isEmpty ? nil : findOrCreateEvent(trimmed, kind: .league)
             event?.isSport = isSport
             session.leagueEvent = event
-            session.blockName = nil
         case .tournament:
             session.eventName = trimmed.isEmpty ? nil : trimmed
             session.leagueName = trimmed.isEmpty ? nil : trimmed
             let event = trimmed.isEmpty ? nil : findOrCreateEvent(trimmed, kind: .tournament)
             event?.isSport = isSport
             session.leagueEvent = event
-            let block = blockName.trimmingCharacters(in: .whitespaces)
-            session.blockName = block.isEmpty ? nil : block
         case .practice:
             session.leagueName = nil
             session.eventName = nil
             session.leagueEvent = nil
-            session.blockName = nil
         }
+        // Custom session/block name applies to every type now.
+        let block = blockName.trimmingCharacters(in: .whitespaces)
+        session.blockName = block.isEmpty ? nil : block
         dismiss()
     }
 

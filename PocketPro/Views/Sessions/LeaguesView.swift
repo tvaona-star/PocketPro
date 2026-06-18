@@ -366,11 +366,17 @@ struct LeagueDetailView: View {
     private func weekRow(_ week: Session) -> some View {
         let series = week.sortedGames.map { $0.finalScore }.reduce(0, +)
         let hasScores = week.sortedGames.contains { $0.finalScore > 0 }
+        let named = !(week.blockName ?? "").isEmpty
         return VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 6) {
-                Text(week.date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day().year()))
+                Text(named ? week.blockName! : week.date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day().year()))
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(Theme.textPrimary)
+                if named {
+                    Text(week.date.formatted(.dateTime.month(.abbreviated).day()))
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.textMuted)
+                }
                 if week.isActive {
                     Badge(text: "In progress", color: Theme.warning)
                 }

@@ -559,20 +559,23 @@ struct SessionsTabView: View {
         let avg = scores.isEmpty ? nil : Double(scores.reduce(0, +)) / Double(scores.count)
         let gameCount = session.sortedGames.count
         let locationSuffix = session.location.map { " · \($0.name)" } ?? ""
+        let dateString = session.date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day().year())
+        let named = !(session.blockName ?? "").isEmpty
+        let subtitle = (named ? dateString + " · " : "") + "\(gameCount) game\(gameCount == 1 ? "" : "s")" + locationSuffix
         return HStack(spacing: 12) {
             Image(systemName: "figure.bowling")
                 .font(.system(size: 16))
                 .foregroundStyle(Theme.sessionTypeColor(.practice))
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
-                    Text(session.date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day().year()))
+                    Text(named ? session.blockName! : dateString)
                         .font(Theme.cardTitle)
                         .foregroundStyle(Theme.textPrimary)
                     if isSport(session) {
                         Badge(text: "Sport", color: Theme.warning)
                     }
                 }
-                Text("\(gameCount) game\(gameCount == 1 ? "" : "s")\(locationSuffix)")
+                Text(subtitle)
                     .font(.system(size: 12))
                     .foregroundStyle(Theme.textSecondary)
                     .lineLimit(1)

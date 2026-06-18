@@ -131,8 +131,9 @@ final class Session {
         (games ?? []).sorted { $0.orderIndex < $1.orderIndex }
     }
 
-    /// League or event name appropriate to the session type.
+    /// Display name: a custom session/block name wins, else the league/event name.
     var title: String {
+        if let name = blockName, !name.isEmpty { return name }
         if let league = leagueName, !league.isEmpty { return league }
         if let event = eventName, !event.isEmpty { return event }
         return type.displayName
