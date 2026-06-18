@@ -1,6 +1,38 @@
 import SwiftUI
 import PocketProCore
 
+// MARK: - Primary dashboard grid (PRD 5.3) — shared by the Stats tab and stats sheet
+
+/// The 8-card primary grid. Left column Strike / Single-Pin / Makeable / Clean;
+/// right column Average / Double / Split / Open (row-major).
+struct DashboardStatGrid: View {
+    let stats: DashboardStats
+    var masked: Bool = false
+
+    private let columns = [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)]
+
+    private func pct(_ value: Double?) -> String {
+        masked ? "--" : Notation.percent(value)
+    }
+    private func avg(_ value: Double?) -> String {
+        guard !masked, let value else { return "--" }
+        return Notation.oneDecimal(value)
+    }
+
+    var body: some View {
+        LazyVGrid(columns: columns, spacing: 10) {
+            StatTile(label: "Strike %", value: pct(stats.strikePercent))
+            StatTile(label: "Average", value: avg(stats.average))
+            StatTile(label: "Single Pin Spare %", value: pct(stats.singleSparePercent))
+            StatTile(label: "Double %", value: pct(stats.doublesPercent))
+            StatTile(label: "Makeable Spare %", value: pct(stats.makeableSparePercent))
+            StatTile(label: "Split %", value: pct(stats.splitPercent))
+            StatTile(label: "Clean Game %", value: pct(stats.cleanGamePercent))
+            StatTile(label: "Open Frame %", value: pct(stats.openFramePercent))
+        }
+    }
+}
+
 // MARK: - Spare breakdown panel (PRD 5.3, taxonomy per 5.5)
 
 struct SpareBreakdownPanel: View {

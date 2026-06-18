@@ -376,28 +376,10 @@ struct StatsTabView: View {
         }
     }
 
-    // MARK: - Primary 2x3 grid (PRD 5.3)
+    // MARK: - Primary 2x4 grid (PRD 5.3)
 
     private func primaryGrid(stats: DashboardStats, masked: Bool) -> some View {
-        let columns = Array(repeating: GridItem(.flexible(), spacing: 10), count: 2)
-
-        func display(_ value: Double?, suffix: String = "%") -> String {
-            guard !masked, let value else { return "--" }
-            return suffix == "%" ? String(format: "%.1f%%", value) : Notation.oneDecimal(value)
-        }
-
-        // 2×4 grid (row-major): left column Strike/SinglePin/Makeable/Clean,
-        // right column Average/Double/Split/Open.
-        return LazyVGrid(columns: columns, spacing: 10) {
-            StatTile(label: "Strike %", value: display(stats.strikePercent))
-            StatTile(label: "Average", value: display(stats.average, suffix: ""))
-            StatTile(label: "Single Pin Spare %", value: display(stats.singleSparePercent))
-            StatTile(label: "Double %", value: display(stats.doublesPercent))
-            StatTile(label: "Makeable Spare %", value: display(stats.makeableSparePercent))
-            StatTile(label: "Split %", value: display(stats.splitPercent))
-            StatTile(label: "Clean Game %", value: display(stats.cleanGamePercent))
-            StatTile(label: "Open Frame %", value: display(stats.openFramePercent))
-        }
+        DashboardStatGrid(stats: stats, masked: masked)
     }
 }
 

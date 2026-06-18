@@ -185,6 +185,7 @@ struct LeagueDetailView: View {
     @State private var bowlingSession: Session?
     @State private var showingEdit = false
     @State private var showingMerge = false
+    @State private var showingStats = false
     @State private var weekToDelete: Session?
 
     private var event: LeagueEvent? {
@@ -273,6 +274,9 @@ struct LeagueDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
+                Button { showingStats = true } label: { Image(systemName: "chart.bar") }
+            }
+            ToolbarItem(placement: .topBarTrailing) {
                 Button("Edit") { showingEdit = true }
             }
             ToolbarItem(placement: .topBarTrailing) {
@@ -286,6 +290,10 @@ struct LeagueDetailView: View {
                     Image(systemName: "ellipsis.circle")
                 }
             }
+        }
+        .sheet(isPresented: $showingStats) {
+            SessionStatsSheet(title: leagueName, sessions: weeks)
+                .presentationDetents([.large])
         }
         .sheet(isPresented: $showingEdit) {
             LeagueEditSheet(leagueName: leagueName, existing: event, onConverted: { dismiss() })
@@ -497,6 +505,7 @@ struct TournamentDetailView: View {
     @State private var renameText = ""
     @State private var blockToDelete: Session?
     @State private var showingMerge = false
+    @State private var showingStats = false
 
     private var event: LeagueEvent? {
         leagueEvents.first { $0.kind == .tournament && $0.name.caseInsensitiveCompare(tournamentName) == .orderedSame }
@@ -590,6 +599,9 @@ struct TournamentDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
+                Button { showingStats = true } label: { Image(systemName: "chart.bar") }
+            }
+            ToolbarItem(placement: .topBarTrailing) {
                 Button("Edit") { showingEdit = true }
             }
             ToolbarItem(placement: .topBarTrailing) {
@@ -603,6 +615,10 @@ struct TournamentDetailView: View {
                     Image(systemName: "ellipsis.circle")
                 }
             }
+        }
+        .sheet(isPresented: $showingStats) {
+            SessionStatsSheet(title: tournamentName, sessions: blocks)
+                .presentationDetents([.large])
         }
         .sheet(isPresented: $showingEdit) {
             TournamentEditSheet(tournamentName: tournamentName, existing: event, onConverted: { dismiss() })

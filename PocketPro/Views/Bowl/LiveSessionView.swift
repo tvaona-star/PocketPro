@@ -107,7 +107,7 @@ struct LiveSessionView: View {
             .presentationDetents([.medium])
         }
         .sheet(isPresented: $showingSessionStats) {
-            SessionStatsSheet(session: session)
+            SessionStatsSheet(title: session.title, sessions: [session])
                 .presentationDetents([.large])
         }
         .sheet(item: $noteFrame) { frame in
@@ -646,74 +646,48 @@ struct DirectEntryPad: View {
     }
 }
 
-// MARK: - In-session stats (PRD 5.3: quick dashboard for the current block/session)
+// MARK: - Session stats sheet (PRD 5.3: the main dashboard for one session/group)
 
-/// The current session/block's stats so far — opened from the scoring view.
+/// The same dashboard as the Stats tab — 8-card grid, spare breakdown, strike
+/// clusters — scoped to a session, block, league (its weeks), or tournament (its
+/// blocks). Opened from live scoring, a session detail, or a league/tournament.
 struct SessionStatsSheet: View {
-    let session: Session
+    let title: String
+    let sessions: [Session]
     @Environment(\.dismiss) private var dismiss
-
-    private var games: [GameRecord] { session.gameRecords() }
-
-    private var seriesTotal: Int {
-        session.sortedGames.filter { $0.isComplete }.map { $0.finalScore }.reduce(0, +)
-    }
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                let stats = StatsEngine.dashboard(games: games)
+                let records = sessions.flatMap { $0.gameRecords() }
+                let stats = StatsEngine.dashboard(games: records)
                 VStack(alignment: .leading, spacing: 14) {
-                    HStack(spacing: 16) {
-                        headlineTile("Series", "\(seriesTotal)")
-                        headlineTile("Games", "\(stats.gamesCount)")
-                        headlineTile("Average", stats.average.map { Notation.oneDecimal($0) } ?? "--")
-                    }
-                    .card()
-
                     if stats.gamesCount == 0 {
-                        Text("No completed games yet — finish a game to see stats.")
+                        Text("No completed games yet.")
                             .font(Theme.cardSubtitle)
                             .foregroundStyle(Theme.textMuted)
                             .frame(maxWidth: .infinity, alignment: .center)
-                            .padding(.top, 30)
+                            .padding(.top, 40)
                     } else {
-                        primaryGrid(stats)
-                        SpareBreakdownPanel(games: games)
-                        StrikeClustersPanel(stats: stats, sessions: [session])
+                        DashboardStatGrid(stats: stats)
+
+                        Text("Based on \(stats.gamesCount) game\(stats.gamesCount == 1 ? "" : "s") across \(stats.sessionsCount) session\(stats.sessionsCount == 1 ? "" : "s")")
+                            .font(.system(size: 12))
+                            .foregroundStyle(Theme.textMuted)
+                            .frame(maxWidth: .infinity, alignment: .center)
+
+                        SpareBreakdownPanel(games: records)
+                        StrikeClustersPanel(stats: stats, sessions: sessions)
                     }
                 }
                 .padding()
             }
             .background(Theme.bgPrimary)
-            .navigationTitle(session.title)
+            .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } }
             }
-        }
-    }
-
-    private func headlineTile(_ label: String, _ value: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(value)
-                .font(Theme.statNumber(26))
-                .foregroundStyle(Theme.textPrimary)
-            Text(label.uppercased())
-                .font(Theme.statLabel)
-                .foregroundStyle(Theme.textSecondary)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private func primaryGrid(_ stats: DashboardStats) -> some View {
-        let columns = Array(repeating: GridItem(.flexible(), spacing: 10), count: 2)
-        func pct(_ value: Double?) -> String { value.map { String(format: "%.1f%%", $0) } ?? "--" }
-        return LazyVGrid(columns: columns, spacing: 10) {
-            StatTile(label: "Strike %", value: pct(stats.strikePercent))
-            StatTile(label: "Makeable Spare %", value: pct(stats.makeableSparePercent))
-            StatTile(label: "Split %", value: pct(stats.splitPercent))
-            StatTile(label: "Open Frame %", value: pct(stats.openFramePercent))
         }
     }
 }

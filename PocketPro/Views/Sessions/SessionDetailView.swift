@@ -73,7 +73,7 @@ struct SessionDetailView: View {
             }
         }
         .sheet(isPresented: $showingStats) {
-            SessionStatsSheet(session: session)
+            SessionStatsSheet(title: session.title, sessions: [session])
                 .presentationDetents([.large])
         }
         .fullScreenCover(isPresented: $resumeGame) {
