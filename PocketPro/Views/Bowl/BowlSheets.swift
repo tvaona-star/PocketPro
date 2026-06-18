@@ -6,11 +6,10 @@ import PocketProCore
 
 struct BallSwapSheet: View {
     let session: Session
-    let game: Game?
     let arsenal: [Ball]
-    /// When set (editing a past frame), the pick applies to this frame only.
-    var targetFrame: Frame? = nil
-    @Environment(\.modelContext) private var context
+    /// Reports the picked ball and reason; the caller applies it (live ball or the
+    /// frame being edited).
+    var onSelect: (Ball, String) -> Void
     @Environment(\.dismiss) private var dismiss
 
     @State private var reason = ""
@@ -32,7 +31,8 @@ struct BallSwapSheet: View {
                 Section("Switch to") {
                     ForEach(orderedBalls) { ball in
                         Button {
-                            swap(to: ball)
+                            onSelect(ball, reason)
+                            dismiss()
                         } label: {
                             HStack {
                                 VStack(alignment: .leading, spacing: 2) {
@@ -69,37 +69,6 @@ struct BallSwapSheet: View {
         }
     }
 
-    private func swap(to ball: Ball) {
-        // Editing a specific frame: change only that frame's ball.
-        if let targetFrame {
-            targetFrame.ballID = ball.id
-            targetFrame.ballSwapReason = reason.isEmpty ? nil : reason
-            dismiss()
-            return
-        }
-        guard let game else {
-            dismiss()
-            return
-        }
-        if let current = game.sortedFrames.first(where: {
-            !ScoringEngine.isFrameComplete(balls: $0.counts, frameIndex: $0.number - 1)
-        }) {
-            current.ballID = ball.id
-            current.ballSwapReason = reason.isEmpty ? nil : reason
-        } else if !game.isComplete {
-            // Next frame hasn't started — create it carrying the swap.
-            let frame = Frame()
-            frame.number = min(10, game.sortedFrames.count + 1)
-            frame.game = game
-            frame.ballID = ball.id
-            frame.ballSwapReason = reason.isEmpty ? nil : reason
-            context.insert(frame)
-        }
-        if game.ballID == nil && game.sortedFrames.allSatisfy({ $0.balls.isEmpty }) {
-            game.ballID = ball.id
-        }
-        dismiss()
-    }
 }
 
 // MARK: - Structured frame note (PRD 5.1: board / breakpoint fields + free text)

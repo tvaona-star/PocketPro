@@ -27,6 +27,9 @@ struct LiveSessionView: View {
     @State private var editingBallIndex: Int?
     /// Snapshot of the frame's balls before editing, restored by Back/Cancel.
     @State private var editingBackup: [BallEntry] = []
+    /// The ball in hand for forward entry — what the chip shows and new frames inherit.
+    /// Editing a past frame's ball doesn't change this.
+    @State private var liveBallID: UUID?
 
     private var entryMode: ScoreEntryMode {
         ScoreEntryMode(rawValue: entryModeRaw) ?? .pinDeck
@@ -55,7 +58,11 @@ struct LiveSessionView: View {
                     FrameStripView(game: game, editingFrameNumber: editingFrame?.number, onLongPressFrame: { frame in
                         noteFrame = frame
                     }, onTapFrame: { frame in
-                        beginEditing(frame)
+                        // Switch which frame you're editing — or return to live entry by
+                        // tapping the current frame — without cancelling first.
+                        let currentIndex = entryContext(game: game).frameIndex
+                        if editingFrame != nil { cancelEdit() }
+                        if frame.number - 1 != currentIndex { beginEditing(frame) }
                     })
 
                     HStack(spacing: 8) {
@@ -84,6 +91,8 @@ struct LiveSessionView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .background(Theme.bgPrimary)
+        .onAppear { syncLiveBall(game: game) }
+        .onChange(of: game?.id) { syncLiveBall(game: game) }
         .sheet(isPresented: $showingEndOfGame, onDismiss: { endedGame = nil }) {
             if let endedGame {
                 EndOfGameCard(session: session, game: endedGame, onAnotherGame: startAnotherGame, onDone: endSession)
@@ -92,8 +101,10 @@ struct LiveSessionView: View {
             }
         }
         .sheet(isPresented: $showingBallSwap) {
-            BallSwapSheet(session: session, game: game, arsenal: arsenal, targetFrame: editingFrame)
-                .presentationDetents([.medium])
+            BallSwapSheet(session: session, arsenal: arsenal) { ball, reason in
+                applyBallSelection(ball: ball, reason: reason)
+            }
+            .presentationDetents([.medium])
         }
         .sheet(isPresented: $showingSessionStats) {
             SessionStatsSheet(session: session)
@@ -213,17 +224,33 @@ struct LiveSessionView: View {
     }
 
     private func chipBallID(game: Game) -> UUID? {
-        if let editing = editingFrame { return editing.ballID ?? game.ballID }
-        let entry = entryContext(game: game)
-        if let frame = game.sortedFrames.first(where: { $0.number - 1 == entry.frameIndex }) {
-            return frame.ballID ?? game.ballID
-        }
-        return ballInHand(game: game)
+        if let editing = editingFrame { return editing.ballID ?? liveBallID ?? game.ballID }
+        return liveBallID ?? game.ballID
     }
 
-    /// Ball carried into a new frame — the previous frame's ball, else the game's.
-    private func ballInHand(game: Game) -> UUID? {
-        game.sortedFrames.last?.ballID ?? game.ballID
+    /// Seed the live ball from the game on appear / when a new game starts: the ball
+    /// last used in this game, else the game's starting ball.
+    private func syncLiveBall(game: Game?) {
+        guard let game else { return }
+        liveBallID = game.sortedFrames.last?.ballID ?? game.ballID
+    }
+
+    /// Apply a ball pick from the swap sheet. Editing a past frame changes only that
+    /// frame; otherwise it becomes the live ball and applies to the current frame.
+    private func applyBallSelection(ball: Ball, reason: String) {
+        guard let game else { return }
+        if let editing = editingFrame {
+            editing.ballID = ball.id
+            editing.ballSwapReason = reason.isEmpty ? nil : reason
+            return
+        }
+        liveBallID = ball.id
+        if game.ballID == nil { game.ballID = ball.id }
+        let entry = entryContext(game: game)
+        if let frame = game.sortedFrames.first(where: { $0.number - 1 == entry.frameIndex }) {
+            frame.ballID = ball.id
+            frame.ballSwapReason = reason.isEmpty ? nil : reason
+        }
     }
 
     // MARK: - Entry
@@ -403,8 +430,8 @@ struct LiveSessionView: View {
         let frame = Frame()
         frame.number = entry.frameIndex + 1
         frame.game = game
-        // Each frame stores its own ball, carried forward from the prior frame.
-        frame.ballID = ballInHand(game: game)
+        // Each frame stores its own ball — the live ball in hand.
+        frame.ballID = liveBallID ?? game.ballID
         context.insert(frame)
         return frame
     }
