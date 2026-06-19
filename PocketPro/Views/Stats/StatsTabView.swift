@@ -189,7 +189,9 @@ struct StatsTabView: View {
                     }
 
                     if belowThreshold {
-                        Text("No games match these filters yet.")
+                        Text(hasAnyCompletedGames
+                             ? "No games match these filters — try Clear or a wider date range."
+                             : "No games yet — start a session to see your stats.")
                             .font(Theme.cardSubtitle)
                             .foregroundStyle(Theme.textMuted)
                             .frame(maxWidth: .infinity, alignment: .center)
@@ -216,6 +218,11 @@ struct StatsTabView: View {
             .background(Theme.bgPrimary)
             .navigationTitle("Stats")
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button { showingCompare = true } label: {
+                        Image(systemName: "chart.bar.xaxis")
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     SettingsToolbarLink()
                 }
@@ -314,10 +321,47 @@ struct StatsTabView: View {
                         filterPill(icon: "drop", label: patternFilterLabel, active: !patternFilter.isEmpty)
                     }
                     .buttonStyle(.plain)
+
+                    if statsFiltersActive {
+                        Button { resetStatsFilters() } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "xmark.circle.fill")
+                                Text("Clear")
+                            }
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(Theme.textSecondary)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 7)
+                            .background(Theme.bgElevated)
+                            .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
                 .padding(.trailing, 4)
             }
         }
+    }
+
+    /// Whether any completed game exists at all, ignoring filters — distinguishes
+    /// "no data yet" from "filters too narrow" in the empty message.
+    private var hasAnyCompletedGames: Bool {
+        allSessions.contains { !$0.isActive && $0.sortedGames.contains { $0.finalScore > 0 } }
+    }
+
+    /// Any filter set away from its default — drives the Clear pill.
+    private var statsFiltersActive: Bool {
+        typeFilter != nil || !leagueFilter.isEmpty || dateRange != .thisSeason
+            || !ballFilter.isEmpty || !patternFilter.isEmpty || conditionFilter != .all
+    }
+
+    private func resetStatsFilters() {
+        typeFilter = nil
+        leagueFilter = []
+        dateRange = .thisSeason
+        ballFilter = []
+        patternFilter = []
+        conditionFilter = .all
     }
 
     private func filterPill(icon: String, label: String, active: Bool) -> some View {
