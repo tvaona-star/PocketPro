@@ -68,6 +68,7 @@ struct LeagueEditSheet: View {
     @State private var hasStartDate = false
     @State private var gamesPerWeek = 3
     @State private var isSport = false
+    @State private var showingRenameConfirm = false
 
     /// The league's own sessions (its weeks) — what a conversion will re-tag.
     private var weeks: [Session] {
@@ -125,35 +126,53 @@ struct LeagueEditSheet: View {
                     isSport = existing.isSport
                 }
             }
+            .confirmationDialog("Rename league?", isPresented: $showingRenameConfirm, titleVisibility: .visible) {
+                Button("Rename & update \(weeks.count) week\(weeks.count == 1 ? "" : "s")") { commitLeague() }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Renames the league everywhere and re-tags all its weeks. You'll return to the Sessions list.")
+            }
         }
     }
 
     private func save() {
-        if type == .league {
-            let trimmed = name.trimmingCharacters(in: .whitespaces)
-            let newName = trimmed.isEmpty ? leagueName : trimmed
-            let renamed = newName.caseInsensitiveCompare(leagueName) != .orderedSame
-
-            let league = findOrCreateEvent(newName, kind: .league)
-            league.startDate = hasStartDate ? startDate : nil
-            league.gamesPerWeek = gamesPerWeek
-            league.isSport = isSport
-
-            if renamed {
-                // Re-tag every week to the new name and drop the old record.
-                for week in weeks {
-                    week.leagueName = newName
-                    week.leagueEvent = league
-                }
-                if let existing, existing !== league { context.delete(existing) }
-            }
-            dismiss()
-            if renamed { onConverted?() }   // detail's leagueName is now stale → pop
-        } else {
+        guard type == .league else {
             convert(to: type)
             dismiss()
             onConverted?()
+            return
         }
+        // A rename cascades to every week and pops back to the list — confirm first.
+        let trimmed = name.trimmingCharacters(in: .whitespaces)
+        let newName = trimmed.isEmpty ? leagueName : trimmed
+        if newName.caseInsensitiveCompare(leagueName) != .orderedSame {
+            showingRenameConfirm = true
+        } else {
+            commitLeague()
+        }
+    }
+
+    /// Apply the name and settings; when the name changed, re-tag every week, drop
+    /// the old record, and pop the (now stale) detail view.
+    private func commitLeague() {
+        let trimmed = name.trimmingCharacters(in: .whitespaces)
+        let newName = trimmed.isEmpty ? leagueName : trimmed
+        let renamed = newName.caseInsensitiveCompare(leagueName) != .orderedSame
+
+        let league = findOrCreateEvent(newName, kind: .league)
+        league.startDate = hasStartDate ? startDate : nil
+        league.gamesPerWeek = gamesPerWeek
+        league.isSport = isSport
+
+        if renamed {
+            for week in weeks {
+                week.leagueName = newName
+                week.leagueEvent = league
+            }
+            if let existing, existing !== league { context.delete(existing) }
+        }
+        dismiss()
+        if renamed { onConverted?() }
     }
 
     /// Re-tag every week of this league to the new type and drop the league record.
@@ -895,6 +914,7 @@ struct TournamentEditSheet: View {
     @State private var type: SessionType = .tournament
     @State private var name = ""
     @State private var isSport = false
+    @State private var showingRenameConfirm = false
 
     /// The tournament's own blocks — what a conversion will re-tag.
     private var blocks: [Session] {
@@ -943,34 +963,52 @@ struct TournamentEditSheet: View {
                 name = tournamentName
                 isSport = existing?.isSport ?? false
             }
+            .confirmationDialog("Rename tournament?", isPresented: $showingRenameConfirm, titleVisibility: .visible) {
+                Button("Rename & update \(blocks.count) block\(blocks.count == 1 ? "" : "s")") { commitTournament() }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Renames the tournament everywhere and re-tags all its blocks. You'll return to the Sessions list.")
+            }
         }
     }
 
     private func save() {
-        if type == .tournament {
-            let trimmed = name.trimmingCharacters(in: .whitespaces)
-            let newName = trimmed.isEmpty ? tournamentName : trimmed
-            let renamed = newName.caseInsensitiveCompare(tournamentName) != .orderedSame
-
-            let event = findOrCreateEvent(newName, kind: .tournament)
-            event.isSport = isSport
-
-            if renamed {
-                // Re-tag every block to the new name (keeping each block's own name).
-                for block in blocks {
-                    block.eventName = newName
-                    block.leagueName = newName
-                    block.leagueEvent = event
-                }
-                if let existing, existing !== event { context.delete(existing) }
-            }
-            dismiss()
-            if renamed { onConverted?() }   // detail's tournamentName is now stale → pop
-        } else {
+        guard type == .tournament else {
             convert(to: type)
             dismiss()
             onConverted?()
+            return
         }
+        // A rename cascades to every block and pops back to the list — confirm first.
+        let trimmed = name.trimmingCharacters(in: .whitespaces)
+        let newName = trimmed.isEmpty ? tournamentName : trimmed
+        if newName.caseInsensitiveCompare(tournamentName) != .orderedSame {
+            showingRenameConfirm = true
+        } else {
+            commitTournament()
+        }
+    }
+
+    /// Apply the name and sport flag; when the name changed, re-tag every block
+    /// (keeping each block's own name), drop the old record, and pop the detail.
+    private func commitTournament() {
+        let trimmed = name.trimmingCharacters(in: .whitespaces)
+        let newName = trimmed.isEmpty ? tournamentName : trimmed
+        let renamed = newName.caseInsensitiveCompare(tournamentName) != .orderedSame
+
+        let event = findOrCreateEvent(newName, kind: .tournament)
+        event.isSport = isSport
+
+        if renamed {
+            for block in blocks {
+                block.eventName = newName
+                block.leagueName = newName
+                block.leagueEvent = event
+            }
+            if let existing, existing !== event { context.delete(existing) }
+        }
+        dismiss()
+        if renamed { onConverted?() }
     }
 
     /// Re-tag every block of this tournament to the new type and drop the tournament record.
