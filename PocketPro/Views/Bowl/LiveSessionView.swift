@@ -321,6 +321,19 @@ struct LiveSessionView: View {
                 Text("\(editingFrame != nil ? "Editing " : "")Frame \(entry.frameIndex + 1) · Ball \(entry.ballIndex + 1)")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(editingFrame != nil ? Theme.accent : Theme.textSecondary)
+                if editingFrame == nil {
+                    // Switch pin-deck ↔ keypad entry in-context (no trip to Settings).
+                    Button {
+                        entryModeRaw = (entryMode == .pinDeck ? ScoreEntryMode.direct : ScoreEntryMode.pinDeck).rawValue
+                    } label: {
+                        HStack(spacing: 3) {
+                            Image(systemName: entryMode == .pinDeck ? "number" : "circle.grid.3x3.fill")
+                            Text(entryMode == .pinDeck ? "Keypad" : "Pins")
+                        }
+                        .font(.system(size: 12, weight: .medium))
+                    }
+                    .foregroundStyle(Theme.textSecondary)
+                }
                 Spacer()
                 if editingFrame != nil {
                     Button {
@@ -353,13 +366,19 @@ struct LiveSessionView: View {
                 // a full fresh rack behaves like a first ball (tap the pins left standing).
                 let knockDown = rack.count < 10
 
+                // The tap target flips every shot, so make the active instruction
+                // unmistakable (a color-coded pill) instead of a faint caption.
+                Text(knockDown ? "Tap the pins you KNOCKED DOWN" : "Tap the pins LEFT STANDING")
+                    .font(.system(size: 12, weight: .heavy))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 5)
+                    .background(knockDown ? Theme.warning : Theme.accent)
+                    .clipShape(Capsule())
+
                 PinDeckView(available: rack, standingAfter: $standingSelection)
                     .frame(maxWidth: 340, maxHeight: deckHeight)
                     .frame(maxWidth: .infinity)
-
-                Text(knockDown ? "Tap the standing pins you knocked down" : "Tap the pins left standing")
-                    .font(.system(size: 12))
-                    .foregroundStyle(Theme.textMuted)
 
                 HStack(spacing: 10) {
                     if knockDown {
