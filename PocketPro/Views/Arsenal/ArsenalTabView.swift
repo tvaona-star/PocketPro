@@ -11,6 +11,7 @@ struct ArsenalTabView: View {
     @State private var showingAddBall = false
     @State private var compareBall: Ball?
     @State private var deleteCandidate: Ball?
+    @State private var surfaceLogBall: Ball?
     @State private var sortOption: BallSort = .name
 
     enum BallSort: String, CaseIterable, Identifiable {
@@ -80,13 +81,13 @@ struct ArsenalTabView: View {
                     }
                 } else {
                     List {
-                        Section {
+                        Section("Tools") {
                             toolsGrid
                                 .listRowBackground(Color.clear)
                                 .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 6, trailing: 16))
                         }
 
-                        Section {
+                        Section("Balls") {
                             ForEach(activeBalls) { ball in
                                 ballRow(ball)
                             }
@@ -140,6 +141,10 @@ struct ArsenalTabView: View {
                 BallCompareView(initialA: ball)
                     .presentationDetents([.large])
             }
+            .sheet(item: $surfaceLogBall) { ball in
+                SurfaceLogSheet(ball: ball, sessions: sessions)
+                    .presentationDetents([.medium, .large])
+            }
             .confirmationDialog(
                 "Delete \(deleteCandidate?.displayName ?? "this ball")?",
                 isPresented: Binding(get: { deleteCandidate != nil }, set: { if !$0 { deleteCandidate = nil } }),
@@ -162,8 +167,16 @@ struct ArsenalTabView: View {
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
         .listRowInsets(EdgeInsets(top: 5, leading: 16, bottom: 5, trailing: 16))
+        .swipeActions(edge: .leading, allowsFullSwipe: true) {
+            // PRD 7.3: surface prep is a frequent action — keep it one swipe away.
+            Button {
+                surfaceLogBall = ball
+            } label: {
+                Label("Surface", systemImage: "circle.dashed")
+            }
+            .tint(Theme.accent)
+        }
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-            // PRD 7.3: swipe quick actions — Edit, Surface Log, Compare.
             Button {
                 compareBall = ball
             } label: {
