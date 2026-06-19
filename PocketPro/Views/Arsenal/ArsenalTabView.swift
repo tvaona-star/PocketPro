@@ -71,8 +71,8 @@ struct ArsenalTabView: View {
                     VStack {
                         EmptyStateView(
                             icon: "circle.grid.3x3",
-                            title: "Add your first ball to start tracking equipment.",
-                            message: "Search 2,000+ balls from Storm, Brunswick, Motiv and more.",
+                            title: "Build your arsenal",
+                            message: "Add your first ball to start tracking equipment — search 2,000+ balls from Storm, Brunswick, Motiv and more.",
                             actionTitle: "Add Ball",
                             action: { showingAddBall = true }
                         )

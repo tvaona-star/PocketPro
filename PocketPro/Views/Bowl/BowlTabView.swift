@@ -18,7 +18,8 @@ struct SessionSetupSheet: View {
     @Query(sort: \LeagueEvent.createdAt, order: .reverse) private var leagueEvents: [LeagueEvent]
     @Query(sort: \Bag.createdAt, order: .reverse) private var bags: [Bag]
 
-    @State private var type: SessionType = .league
+    @AppStorage("settings.lastSessionType") private var lastSessionTypeRaw = SessionType.practice.rawValue
+    @State private var type: SessionType = .practice
     @State private var name = ""
     @State private var locationName = ""
     @State private var selectedPattern: Pattern?
@@ -235,6 +236,7 @@ struct SessionSetupSheet: View {
             }
             .background(Theme.bgElevated)
             .scrollDismissesKeyboard(.interactively)
+            .onAppear { type = SessionType(rawValue: lastSessionTypeRaw) ?? .practice }
             .sheet(isPresented: $showingPatternPicker) {
                 PatternPickerSheet(selected: $selectedPattern)
                     .presentationDetents([.medium, .large])
@@ -243,6 +245,7 @@ struct SessionSetupSheet: View {
     }
 
     private func startSession() {
+        lastSessionTypeRaw = type.rawValue   // remember for next time
         let session = Session()
         session.type = type
         session.isActive = true
