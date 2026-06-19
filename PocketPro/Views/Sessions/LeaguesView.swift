@@ -63,6 +63,7 @@ struct LeagueEditSheet: View {
     @Query private var leagueEvents: [LeagueEvent]
 
     @State private var type: SessionType = .league
+    @State private var name = ""
     @State private var startDate = Date()
     @State private var hasStartDate = false
     @State private var gamesPerWeek = 3
@@ -90,6 +91,9 @@ struct LeagueEditSheet: View {
                 }
 
                 if type == .league {
+                    Section("Name") {
+                        TextField("League name", text: $name)
+                    }
                     Section("Season") {
                         Toggle("Set a start date", isOn: $hasStartDate)
                         if hasStartDate {
@@ -113,6 +117,7 @@ struct LeagueEditSheet: View {
                 }
             }
             .onAppear {
+                name = leagueName
                 if let existing {
                     hasStartDate = existing.startDate != nil
                     startDate = existing.startDate ?? Date()
@@ -125,11 +130,25 @@ struct LeagueEditSheet: View {
 
     private func save() {
         if type == .league {
-            let league = existing ?? findOrCreateEvent(leagueName, kind: .league)
+            let trimmed = name.trimmingCharacters(in: .whitespaces)
+            let newName = trimmed.isEmpty ? leagueName : trimmed
+            let renamed = newName.caseInsensitiveCompare(leagueName) != .orderedSame
+
+            let league = findOrCreateEvent(newName, kind: .league)
             league.startDate = hasStartDate ? startDate : nil
             league.gamesPerWeek = gamesPerWeek
             league.isSport = isSport
+
+            if renamed {
+                // Re-tag every week to the new name and drop the old record.
+                for week in weeks {
+                    week.leagueName = newName
+                    week.leagueEvent = league
+                }
+                if let existing, existing !== league { context.delete(existing) }
+            }
             dismiss()
+            if renamed { onConverted?() }   // detail's leagueName is now stale → pop
         } else {
             convert(to: type)
             dismiss()
@@ -187,6 +206,8 @@ struct LeagueDetailView: View {
     @State private var showingMerge = false
     @State private var showingStats = false
     @State private var weekToDelete: Session?
+    @State private var renameTarget: Session?
+    @State private var renameText = ""
 
     private var event: LeagueEvent? {
         leagueEvents.first { $0.kind == .league && $0.name.caseInsensitiveCompare(leagueName) == .orderedSame }
@@ -261,6 +282,13 @@ struct LeagueDetailView: View {
                                 }
                             }
                         }
+                        .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                            Button {
+                                renameTarget = week
+                                renameText = week.blockName ?? ""
+                            } label: { Label("Rename", systemImage: "pencil") }
+                            .tint(Theme.accent)
+                        }
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                             Button(role: .destructive) { weekToDelete = week } label: {
                                 Label("Delete", systemImage: "trash")
@@ -297,7 +325,7 @@ struct LeagueDetailView: View {
         }
         .sheet(isPresented: $showingEdit) {
             LeagueEditSheet(leagueName: leagueName, existing: event, onConverted: { dismiss() })
-                .presentationDetents([.medium])
+                .presentationDetents([.medium, .large])
         }
         .sheet(isPresented: $showingMerge) {
             MergeGroupSheet(noun: "league", sourceName: leagueName, candidates: otherLeagueNames) { target in
@@ -331,6 +359,15 @@ struct LeagueDetailView: View {
             Button("Cancel", role: .cancel) { weekToDelete = nil }
         } message: { _ in
             Text("Permanently removes this week and its games.")
+        }
+        .alert("Rename Week", isPresented: Binding(get: { renameTarget != nil }, set: { if !$0 { renameTarget = nil } })) {
+            TextField("Week name", text: $renameText)
+            Button("Save") {
+                let trimmed = renameText.trimmingCharacters(in: .whitespaces)
+                renameTarget?.blockName = trimmed.isEmpty ? nil : trimmed
+                renameTarget = nil
+            }
+            Button("Cancel", role: .cancel) { renameTarget = nil }
         }
     }
 
@@ -628,7 +665,7 @@ struct TournamentDetailView: View {
         }
         .sheet(isPresented: $showingEdit) {
             TournamentEditSheet(tournamentName: tournamentName, existing: event, onConverted: { dismiss() })
-                .presentationDetents([.medium])
+                .presentationDetents([.medium, .large])
         }
         .sheet(isPresented: $showingMerge) {
             MergeGroupSheet(noun: "tournament", sourceName: tournamentName, candidates: otherTournamentNames) { target in
@@ -808,6 +845,7 @@ struct TournamentEditSheet: View {
     @Query private var leagueEvents: [LeagueEvent]
 
     @State private var type: SessionType = .tournament
+    @State private var name = ""
     @State private var isSport = false
 
     /// The tournament's own blocks — what a conversion will re-tag.
@@ -833,6 +871,9 @@ struct TournamentEditSheet: View {
                 }
 
                 if type == .tournament {
+                    Section("Name") {
+                        TextField("Tournament name", text: $name)
+                    }
                     Section {
                         Toggle("Sport pattern", isOn: $isSport)
                     }
@@ -851,6 +892,7 @@ struct TournamentEditSheet: View {
                 }
             }
             .onAppear {
+                name = tournamentName
                 isSport = existing?.isSport ?? false
             }
         }
@@ -858,9 +900,24 @@ struct TournamentEditSheet: View {
 
     private func save() {
         if type == .tournament {
-            let event = existing ?? findOrCreateEvent(tournamentName, kind: .tournament)
+            let trimmed = name.trimmingCharacters(in: .whitespaces)
+            let newName = trimmed.isEmpty ? tournamentName : trimmed
+            let renamed = newName.caseInsensitiveCompare(tournamentName) != .orderedSame
+
+            let event = findOrCreateEvent(newName, kind: .tournament)
             event.isSport = isSport
+
+            if renamed {
+                // Re-tag every block to the new name (keeping each block's own name).
+                for block in blocks {
+                    block.eventName = newName
+                    block.leagueName = newName
+                    block.leagueEvent = event
+                }
+                if let existing, existing !== event { context.delete(existing) }
+            }
             dismiss()
+            if renamed { onConverted?() }   // detail's tournamentName is now stale → pop
         } else {
             convert(to: type)
             dismiss()
