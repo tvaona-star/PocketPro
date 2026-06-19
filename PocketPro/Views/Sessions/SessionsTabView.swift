@@ -332,89 +332,101 @@ struct SessionsTabView: View {
 
     var body: some View {
         NavigationStack {
-            Group {
-                if !hasAnySessions && activeSession == nil {
-                    emptyState
-                } else {
-                    sessionList
+            sessionsContent
+                .confirmationDialog(
+                    "Delete \(deleteLeagueCandidate ?? "league")?",
+                    isPresented: Binding(get: { deleteLeagueCandidate != nil }, set: { if !$0 { deleteLeagueCandidate = nil } }),
+                    titleVisibility: .visible,
+                    presenting: deleteLeagueCandidate
+                ) { name in
+                    Button("Delete league & all weeks", role: .destructive) {
+                        deleteLeague(name)
+                        deleteLeagueCandidate = nil
+                    }
+                    Button("Cancel", role: .cancel) { deleteLeagueCandidate = nil }
+                } message: { name in
+                    Text("Permanently removes \(name) and every week and game in it. To keep the data for stats but hide it here, use Archive instead.")
                 }
-            }
-            .background(Theme.bgPrimary)
-            .navigationTitle("Sessions")
-            .toolbar { toolbarContent }
-            .sheet(isPresented: $showingNewLeague) {
-                NewLeagueSheet()
-                    .presentationDetents([.medium])
-            }
-            .sheet(isPresented: $showingNewTournament) {
-                NewTournamentSheet()
-                    .presentationDetents([.medium])
-            }
-            .sheet(isPresented: $showingSetup, onDismiss: {
-                // Open scoring only after the setup sheet has fully dismissed.
-                if let started = pendingLive {
-                    pendingLive = nil
-                    liveSession = started
+                .confirmationDialog(
+                    "Delete \(deleteTournamentCandidate ?? "tournament")?",
+                    isPresented: Binding(get: { deleteTournamentCandidate != nil }, set: { if !$0 { deleteTournamentCandidate = nil } }),
+                    titleVisibility: .visible,
+                    presenting: deleteTournamentCandidate
+                ) { name in
+                    Button("Delete tournament & all blocks", role: .destructive) {
+                        deleteTournament(name)
+                        deleteTournamentCandidate = nil
+                    }
+                    Button("Cancel", role: .cancel) { deleteTournamentCandidate = nil }
+                } message: { name in
+                    Text("Permanently removes \(name) and every event block and game in it. To keep the data for stats but hide it here, use Archive instead.")
                 }
-            }) {
-                SessionSetupSheet(onStart: { pendingLive = $0 })
-                    .presentationDetents([.large])
-                    .presentationDragIndicator(.visible)
-            }
-            .fullScreenCover(item: $liveSession) { session in
-                NavigationStack {
-                    LiveSessionView(session: session, onEnd: { liveSession = nil })
-                        .navigationTitle(session.title)
-                        .navigationBarTitleDisplayMode(.inline)
-                        .toolbar {
-                            ToolbarItem(placement: .topBarLeading) {
-                                Button("Done for now") { liveSession = nil }
-                            }
-                        }
+                .confirmationDialog(
+                    "Delete this practice session?",
+                    isPresented: Binding(get: { deleteSessionCandidate != nil }, set: { if !$0 { deleteSessionCandidate = nil } }),
+                    titleVisibility: .visible,
+                    presenting: deleteSessionCandidate
+                ) { session in
+                    Button("Delete session", role: .destructive) {
+                        context.delete(session)
+                        deleteSessionCandidate = nil
+                    }
+                    Button("Cancel", role: .cancel) { deleteSessionCandidate = nil }
+                } message: { _ in
+                    Text("Permanently removes this session and its games. To keep it for stats but hide it here, use Archive instead.")
                 }
+        }
+    }
+
+    /// List/empty state plus chrome, toolbar, and the create/resume presentations.
+    /// Split from `body` and the delete dialogs to keep each expression within the
+    /// Swift type-checker's budget.
+    private var sessionsContent: some View {
+        Group {
+            if !hasAnySessions && activeSession == nil {
+                emptyState
+            } else {
+                sessionList
             }
-            .confirmationDialog(
-                "Delete \(deleteLeagueCandidate ?? "league")?",
-                isPresented: Binding(get: { deleteLeagueCandidate != nil }, set: { if !$0 { deleteLeagueCandidate = nil } }),
-                titleVisibility: .visible,
-                presenting: deleteLeagueCandidate
-            ) { name in
-                Button("Delete league & all weeks", role: .destructive) {
-                    deleteLeague(name)
-                    deleteLeagueCandidate = nil
+        }
+        .background(Theme.bgPrimary)
+        .navigationTitle("Sessions")
+        .toolbar { toolbarContent }
+        .sheet(isPresented: $showingNewLeague) {
+            NewLeagueSheet()
+                .presentationDetents([.medium])
+        }
+        .sheet(isPresented: $showingNewTournament) {
+            NewTournamentSheet()
+                .presentationDetents([.medium])
+        }
+        .sheet(isPresented: $showingSetup, onDismiss: {
+            // Open scoring only after the setup sheet has fully dismissed.
+            if let started = pendingLive {
+                pendingLive = nil
+                liveSession = started
+            }
+        }) {
+            SessionSetupSheet(onStart: { pendingLive = $0 })
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+        }
+        .fullScreenCover(item: $liveSession) { session in
+            liveScoringCover(session)
+        }
+    }
+
+    /// Full-screen live scoring with a "Done for now" (pause) exit.
+    private func liveScoringCover(_ session: Session) -> some View {
+        NavigationStack {
+            LiveSessionView(session: session, onEnd: { liveSession = nil })
+                .navigationTitle(session.title)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button("Done for now") { liveSession = nil }
+                    }
                 }
-                Button("Cancel", role: .cancel) { deleteLeagueCandidate = nil }
-            } message: { name in
-                Text("Permanently removes \(name) and every week and game in it. To keep the data for stats but hide it here, use Archive instead.")
-            }
-            .confirmationDialog(
-                "Delete \(deleteTournamentCandidate ?? "tournament")?",
-                isPresented: Binding(get: { deleteTournamentCandidate != nil }, set: { if !$0 { deleteTournamentCandidate = nil } }),
-                titleVisibility: .visible,
-                presenting: deleteTournamentCandidate
-            ) { name in
-                Button("Delete tournament & all blocks", role: .destructive) {
-                    deleteTournament(name)
-                    deleteTournamentCandidate = nil
-                }
-                Button("Cancel", role: .cancel) { deleteTournamentCandidate = nil }
-            } message: { name in
-                Text("Permanently removes \(name) and every event block and game in it. To keep the data for stats but hide it here, use Archive instead.")
-            }
-            .confirmationDialog(
-                "Delete this practice session?",
-                isPresented: Binding(get: { deleteSessionCandidate != nil }, set: { if !$0 { deleteSessionCandidate = nil } }),
-                titleVisibility: .visible,
-                presenting: deleteSessionCandidate
-            ) { session in
-                Button("Delete session", role: .destructive) {
-                    context.delete(session)
-                    deleteSessionCandidate = nil
-                }
-                Button("Cancel", role: .cancel) { deleteSessionCandidate = nil }
-            } message: { _ in
-                Text("Permanently removes this session and its games. To keep it for stats but hide it here, use Archive instead.")
-            }
         }
     }
 
