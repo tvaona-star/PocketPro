@@ -25,6 +25,7 @@ struct SessionsTabView: View {
     @State private var deleteTournamentCandidate: String?
     @State private var deleteSessionCandidate: Session?
     @State private var sessionSort: SessionSort = .recent
+    @State private var searchText = ""
 
     enum SessionSort: String, CaseIterable, Identifiable {
         case recent = "Most recent"
@@ -117,8 +118,20 @@ struct SessionsTabView: View {
             .sorted { $0.latest > $1.latest }
     }
 
-    private var leagues: [LeagueGroup] { groupLeagues(includeArchived: false) }
-    private var archivedLeagues: [LeagueGroup] { groupLeagues(includeArchived: true) }
+    private var leagues: [LeagueGroup] { groupLeagues(includeArchived: false).filter { matchesSearch($0.name) } }
+    private var archivedLeagues: [LeagueGroup] { groupLeagues(includeArchived: true).filter { matchesSearch($0.name) } }
+
+    /// Case-insensitive match against the search field (true when search is empty).
+    private func matchesSearch(_ haystack: String) -> Bool {
+        searchText.isEmpty || haystack.localizedCaseInsensitiveContains(searchText)
+    }
+
+    /// Searchable text for a practice session: its name, location, and date.
+    private func practiceHaystack(_ s: Session) -> String {
+        [s.blockName, s.location?.name,
+         s.date.formatted(.dateTime.weekday(.wide).month(.wide).day().year())]
+            .compactMap { $0 }.joined(separator: " ")
+    }
 
     /// A tournament and its event blocks (parallel to a league and its weeks).
     private struct TournamentGroup: Identifiable {
@@ -154,8 +167,8 @@ struct SessionsTabView: View {
             .sorted { $0.latest > $1.latest }
     }
 
-    private var tournamentGroups: [TournamentGroup] { groupTournaments(includeArchived: false) }
-    private var archivedTournaments: [TournamentGroup] { groupTournaments(includeArchived: true) }
+    private var tournamentGroups: [TournamentGroup] { groupTournaments(includeArchived: false).filter { matchesSearch($0.name) } }
+    private var archivedTournaments: [TournamentGroup] { groupTournaments(includeArchived: true).filter { matchesSearch($0.name) } }
 
     /// The in-progress session, if any. Surfaced as a resume banner — the single
     /// place to get back into live scoring now that there's no Bowl tab.
@@ -166,23 +179,30 @@ struct SessionsTabView: View {
 
     /// Non-archived practice sessions, newest first.
     private var practiceSessions: [Session] {
-        allSessions.filter { !$0.isActive && !$0.isArchived && $0.type == .practice }
+        allSessions.filter { !$0.isActive && !$0.isArchived && $0.type == .practice && matchesSearch(practiceHaystack($0)) }
     }
 
     /// Archived practice sessions — leagues and tournaments archive as groups
     /// (`archivedLeagues` / `archivedTournaments`), so only practice is per-session here.
     private var archivedPractice: [Session] {
-        allSessions.filter { !$0.isActive && $0.isArchived && $0.type == .practice }
+        allSessions.filter { !$0.isActive && $0.isArchived && $0.type == .practice && matchesSearch(practiceHaystack($0)) }
     }
 
     private var archivedCount: Int {
         archivedLeagues.count + archivedTournaments.count + archivedPractice.count
     }
 
-    /// True when there's nothing at all to show — drives the empty state.
+    /// True when there's any saved data at all — independent of the search field, so
+    /// searching to zero results shows the (empty) list, not the first-run empty state.
     private var hasAnySessions: Bool {
-        !leagues.isEmpty || !tournamentGroups.isEmpty || !practiceSessions.isEmpty
-            || !archivedLeagues.isEmpty || archivedCount > 0
+        allSessions.contains { !$0.isActive } || leagueEvents.contains { !$0.name.isEmpty }
+    }
+
+    /// A search is active but matched nothing — drives an inline "no matches" row.
+    private var noSearchResults: Bool {
+        !searchText.isEmpty && leagues.isEmpty && tournamentGroups.isEmpty
+            && practiceSessions.isEmpty && archivedLeagues.isEmpty
+            && archivedTournaments.isEmpty && archivedPractice.isEmpty
     }
 
     private var emptyState: some View {
@@ -211,6 +231,16 @@ struct SessionsTabView: View {
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
                     .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+            }
+
+            if noSearchResults {
+                Text("No sessions match \"\(searchText)\"")
+                    .font(.system(size: 14))
+                    .foregroundStyle(Theme.textMuted)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.vertical, 30)
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
             }
 
             if !leagues.isEmpty {
@@ -333,6 +363,7 @@ struct SessionsTabView: View {
     var body: some View {
         NavigationStack {
             sessionsContent
+                .searchable(text: $searchText, prompt: "Search sessions")
                 .confirmationDialog(
                     "Delete \(deleteLeagueCandidate ?? "league")?",
                     isPresented: Binding(get: { deleteLeagueCandidate != nil }, set: { if !$0 { deleteLeagueCandidate = nil } }),
