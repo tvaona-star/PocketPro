@@ -12,6 +12,11 @@ struct SessionsTabView: View {
 
     @State private var showingNewLeague = false
     @State private var showingNewTournament = false
+    @State private var showingSetup = false
+    /// Set by the setup sheet just before it dismisses; promoted to `liveSession`
+    /// in the sheet's onDismiss so the scoring cover opens after the sheet is gone.
+    @State private var pendingLive: Session?
+    @State private var liveSession: Session?
     @State private var showArchived = false
     @State private var leaguesExpanded = true
     @State private var tournamentsExpanded = true
@@ -152,6 +157,13 @@ struct SessionsTabView: View {
     private var tournamentGroups: [TournamentGroup] { groupTournaments(includeArchived: false) }
     private var archivedTournaments: [TournamentGroup] { groupTournaments(includeArchived: true) }
 
+    /// The in-progress session, if any. Surfaced as a resume banner — the single
+    /// place to get back into live scoring now that there's no Bowl tab.
+    /// `allSessions` is date-descending, so this is the most recent active one.
+    private var activeSession: Session? {
+        allSessions.first { $0.isActive }
+    }
+
     /// Non-archived practice sessions, newest first.
     private var practiceSessions: [Session] {
         allSessions.filter { !$0.isActive && !$0.isArchived && $0.type == .practice }
@@ -176,17 +188,24 @@ struct SessionsTabView: View {
     var body: some View {
         NavigationStack {
             Group {
-                if !hasAnySessions {
+                if !hasAnySessions && activeSession == nil {
                     EmptyStateView(
-                        icon: "list.bullet.rectangle",
-                        title: "No sessions yet",
-                        message: "Create a league, or start a session from the Bowl tab.",
-                        actionTitle: "New League",
-                        action: { showingNewLeague = true }
+                        icon: "figure.bowling",
+                        title: "Ready to bowl?",
+                        message: "Start a session to track your game frame by frame.",
+                        actionTitle: "Start a Session",
+                        action: { showingSetup = true }
                     )
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     List {
+                        if let active = activeSession {
+                            ResumeSessionBanner(session: active) { liveSession = active }
+                                .listRowBackground(Color.clear)
+                                .listRowSeparator(.hidden)
+                                .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 4, trailing: 16))
+                        }
+
                         if importReviewCount > 0 {
                             ImportReviewBanner(count: importReviewCount)
                                 .listRowBackground(Color.clear)
@@ -270,6 +289,12 @@ struct SessionsTabView: View {
                 ToolbarItem(placement: .topBarLeading) {
                     Menu {
                         Button {
+                            showingSetup = true
+                        } label: {
+                            Label("Start a Session", systemImage: "figure.bowling")
+                        }
+                        Divider()
+                        Button {
                             showingNewLeague = true
                         } label: {
                             Label("New League", systemImage: "trophy")
@@ -307,6 +332,29 @@ struct SessionsTabView: View {
             .sheet(isPresented: $showingNewTournament) {
                 NewTournamentSheet()
                     .presentationDetents([.medium])
+            }
+            .sheet(isPresented: $showingSetup, onDismiss: {
+                // Open scoring only after the setup sheet has fully dismissed.
+                if let started = pendingLive {
+                    pendingLive = nil
+                    liveSession = started
+                }
+            }) {
+                SessionSetupSheet(onStart: { pendingLive = $0 })
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.visible)
+            }
+            .fullScreenCover(item: $liveSession) { session in
+                NavigationStack {
+                    LiveSessionView(session: session, onEnd: { liveSession = nil })
+                        .navigationTitle(session.title)
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar {
+                            ToolbarItem(placement: .topBarLeading) {
+                                Button("Done for now") { liveSession = nil }
+                            }
+                        }
+                }
             }
             .confirmationDialog(
                 "Delete \(deleteLeagueCandidate ?? "league")?",
@@ -843,6 +891,45 @@ struct ImportReviewBanner: View {
                     .foregroundStyle(Theme.textMuted)
             }
             .card(padding: 12)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// Prominent "get back into your in-progress session" banner — the primary way to
+/// resume scoring now that starting and resuming both live in the Sessions tab.
+struct ResumeSessionBanner: View {
+    let session: Session
+    var onResume: () -> Void
+
+    private var subtitle: String {
+        let games = session.sortedGames.count
+        return "\(session.title) · \(games) game\(games == 1 ? "" : "s") in progress"
+    }
+
+    var body: some View {
+        Button(action: onResume) {
+            HStack(spacing: 12) {
+                Image(systemName: "figure.bowling")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(.white)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Resume session")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(.white)
+                    Text(subtitle)
+                        .font(.system(size: 12))
+                        .foregroundStyle(.white.opacity(0.85))
+                        .lineLimit(1)
+                }
+                Spacer()
+                Image(systemName: "play.fill")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(.white)
+            }
+            .padding(14)
+            .background(Theme.accent)
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
         .buttonStyle(.plain)
     }

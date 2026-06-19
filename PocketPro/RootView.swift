@@ -1,17 +1,15 @@
 import SwiftUI
 import SwiftData
 
-/// Five-tab navigation (PRD §4): Bowl, Sessions, Stats, Arsenal, Spares.
-/// Settings lives behind the gear in each tab's toolbar.
+/// Four-tab navigation (PRD §4): Sessions, Stats, Arsenal, Spares. Starting,
+/// resuming, and scoring all live in Sessions. Settings lives behind the gear in
+/// each tab's toolbar.
 struct RootView: View {
     @Environment(\.modelContext) private var context
     @Environment(BallDatabaseService.self) private var ballDB
 
     var body: some View {
         TabView {
-            BowlTabView()
-                .tabItem { Label("Bowl", systemImage: "figure.bowling") }
-
             SessionsTabView()
                 .tabItem { Label("Sessions", systemImage: "list.bullet.rectangle") }
 

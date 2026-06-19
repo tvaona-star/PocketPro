@@ -340,7 +340,7 @@ struct LeagueDetailView: View {
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
                         ToolbarItem(placement: .topBarLeading) {
-                            // Leave mid-week without ending — resume from the Bowl tab.
+                            // Leave mid-week without ending — resume from the Sessions list.
                             Button("Done for now") { bowlingSession = nil }
                         }
                     }

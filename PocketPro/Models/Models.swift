@@ -96,7 +96,7 @@ final class Session {
     var date: Date = Date()
     var notes: String = ""
     var createdAt: Date = Date()
-    /// True while the Bowl tab has this session live.
+    /// True while this session is in progress (open in live scoring).
     var isActive: Bool = false
     /// Hidden from the Sessions tab but still counted in Stats (PRD 5.2).
     var isArchived: Bool = false

@@ -2,47 +2,12 @@ import SwiftUI
 import SwiftData
 import PocketProCore
 
-/// Bowl tab (PRD 5.1): live session entry. One tap to a new session.
-struct BowlTabView: View {
-    @Environment(\.modelContext) private var context
-    @Query(filter: #Predicate<Session> { $0.isActive }) private var activeSessions: [Session]
-    @State private var showingSetup = false
-
-    var body: some View {
-        NavigationStack {
-            Group {
-                if let session = activeSessions.first {
-                    LiveSessionView(session: session)
-                } else {
-                    EmptyStateView(
-                        icon: "figure.bowling",
-                        title: "Ready to bowl?",
-                        message: "Start a session to track your game frame by frame.",
-                        actionTitle: "New Session",
-                        action: { showingSetup = true }
-                    )
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
-            }
-            .background(Theme.bgPrimary)
-            .navigationTitle("Bowl")
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    SettingsToolbarLink()
-                }
-            }
-            .sheet(isPresented: $showingSetup) {
-                SessionSetupSheet()
-                    .presentationDetents([.large])
-                    .presentationDragIndicator(.visible)
-            }
-        }
-    }
-}
-
 /// Session setup bottom sheet (PRD 5.1): type required, everything else optional,
-/// confirm in one tap.
+/// confirm in one tap. Presented from the Sessions tab; `onStart` hands the new
+/// session back so the caller can drop straight into live scoring.
 struct SessionSetupSheet: View {
+    /// Reports the freshly-created session so the presenter can open live scoring.
+    var onStart: (Session) -> Void = { _ in }
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
 
@@ -320,6 +285,7 @@ struct SessionSetupSheet: View {
         game.ballID = selectedBallIDs.count == 1 ? selectedBallIDs.first : nil
         context.insert(game)
 
+        onStart(session)
         dismiss()
     }
 

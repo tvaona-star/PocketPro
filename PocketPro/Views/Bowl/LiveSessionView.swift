@@ -6,8 +6,8 @@ import PocketProCore
 /// two-thirds of the screen for one-handed use at the lanes (PRD 7.5).
 struct LiveSessionView: View {
     @Bindable var session: Session
-    /// Called when the session ends — lets a presenting flow (e.g. a league week)
-    /// dismiss itself. nil on the Bowl tab, where the session just leaves the view.
+    /// Called when the session ends — lets the presenting cover (the Sessions-tab
+    /// resume flow, a league week, etc.) dismiss itself.
     var onEnd: (() -> Void)? = nil
     @Environment(\.modelContext) private var context
     @AppStorage(SettingsKeys.scoreEntryMode) private var entryModeRaw = ScoreEntryMode.pinDeck.rawValue
