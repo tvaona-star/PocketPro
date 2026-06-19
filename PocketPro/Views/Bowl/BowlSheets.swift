@@ -210,7 +210,7 @@ struct EndOfGameCard: View {
                     saveNote()
                     onDone()
                 } label: {
-                    Text("Done")
+                    Text("End session")
                         .font(.system(size: 17, weight: .semibold))
                         .foregroundStyle(Theme.textPrimary)
                         .frame(maxWidth: .infinity)

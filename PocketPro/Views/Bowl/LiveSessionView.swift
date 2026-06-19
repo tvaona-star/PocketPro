@@ -15,6 +15,7 @@ struct LiveSessionView: View {
 
     @State private var standingSelection = PinSet.empty
     @State private var showingEndOfGame = false
+    @State private var showingEndConfirm = false
     @State private var showingBallSwap = false
     @State private var showingSessionNote = false
     @State private var showingSessionStats = false
@@ -181,13 +182,19 @@ struct LiveSessionView: View {
             }
             Menu {
                 Button("End Session", role: .destructive) {
-                    endSession()
+                    showingEndConfirm = true
                 }
             } label: {
                 Image(systemName: "ellipsis.circle")
                     .font(.system(size: 22))
                     .foregroundStyle(Theme.textSecondary)
             }
+        }
+        .confirmationDialog("End session?", isPresented: $showingEndConfirm, titleVisibility: .visible) {
+            Button("End session", role: .destructive) { endSession() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This session moves to your history. You can still add games to it later from Sessions.")
         }
     }
 
@@ -578,9 +585,9 @@ struct LiveSessionView: View {
                         .clipShape(Capsule())
                 }
                 Button {
-                    endSession()
+                    showingEndConfirm = true
                 } label: {
-                    Text("Done")
+                    Text("End session")
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(Theme.textPrimary)
                         .padding(.horizontal, 18)
