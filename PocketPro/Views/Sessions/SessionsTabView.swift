@@ -185,146 +185,163 @@ struct SessionsTabView: View {
             || !archivedLeagues.isEmpty || archivedCount > 0
     }
 
+    private var emptyState: some View {
+        EmptyStateView(
+            icon: "figure.bowling",
+            title: "Ready to bowl?",
+            message: "Start a session to track your game frame by frame.",
+            actionTitle: "Start a Session",
+            action: { showingSetup = true }
+        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    @ViewBuilder
+    private var sessionList: some View {
+        List {
+            if let active = activeSession {
+                ResumeSessionBanner(session: active) { liveSession = active }
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 4, trailing: 16))
+            }
+
+            if importReviewCount > 0 {
+                ImportReviewBanner(count: importReviewCount)
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+            }
+
+            if !leagues.isEmpty {
+                Section {
+                    sectionHeaderRow("Leagues", count: leagues.count, isExpanded: $leaguesExpanded)
+                    if leaguesExpanded {
+                        ForEach(sortedLeagues(leagues)) { group in
+                            leagueNavRow(group, archived: false)
+                        }
+                    }
+                }
+            }
+
+            if !tournamentGroups.isEmpty {
+                Section {
+                    sectionHeaderRow("Tournaments", count: tournamentGroups.count, isExpanded: $tournamentsExpanded)
+                    if tournamentsExpanded {
+                        ForEach(sortedTournaments(tournamentGroups)) { group in
+                            tournamentNavRow(group, archived: false)
+                        }
+                    }
+                }
+            }
+
+            if !practiceSessions.isEmpty {
+                Section {
+                    sectionHeaderRow("Practice", count: practiceSessions.count, isExpanded: $practiceExpanded)
+                    if practiceExpanded {
+                        ForEach(sortedPractice(practiceSessions)) { session in
+                            sessionNavRow(session, archived: false)
+                        }
+                    }
+                }
+            }
+
+            if archivedCount > 0 {
+                archivedSection
+            }
+        }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+    }
+
+    @ViewBuilder
+    private var archivedSection: some View {
+        Section {
+            Button {
+                withAnimation(Theme.sectionSpring) { showArchived.toggle() }
+            } label: {
+                HStack {
+                    Label("Archived (\(archivedCount))", systemImage: "archivebox")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(Theme.textSecondary)
+                    Spacer()
+                    Image(systemName: showArchived ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Theme.textMuted)
+                }
+            }
+            .buttonStyle(.plain)
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+
+            if showArchived {
+                ForEach(archivedLeagues) { group in
+                    leagueNavRow(group, archived: true)
+                }
+                ForEach(archivedTournaments) { group in
+                    tournamentNavRow(group, archived: true)
+                }
+                ForEach(archivedPractice) { session in
+                    sessionNavRow(session, archived: true)
+                }
+            }
+        }
+    }
+
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
+        ToolbarItem(placement: .topBarLeading) {
+            Menu {
+                Button {
+                    showingSetup = true
+                } label: {
+                    Label("Start a Session", systemImage: "figure.bowling")
+                }
+                Divider()
+                Button {
+                    showingNewLeague = true
+                } label: {
+                    Label("New League", systemImage: "trophy")
+                }
+                Button {
+                    showingNewTournament = true
+                } label: {
+                    Label("New Tournament", systemImage: "flag.checkered")
+                }
+            } label: {
+                Image(systemName: "plus")
+            }
+        }
+        if hasAnySessions {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Picker("Sort by", selection: $sessionSort) {
+                        ForEach(SessionSort.allCases) { option in
+                            Text(option.rawValue).tag(option)
+                        }
+                    }
+                } label: {
+                    Image(systemName: "arrow.up.arrow.down")
+                }
+            }
+        }
+        ToolbarItem(placement: .topBarTrailing) {
+            SettingsToolbarLink()
+        }
+    }
+
     var body: some View {
         NavigationStack {
             Group {
                 if !hasAnySessions && activeSession == nil {
-                    EmptyStateView(
-                        icon: "figure.bowling",
-                        title: "Ready to bowl?",
-                        message: "Start a session to track your game frame by frame.",
-                        actionTitle: "Start a Session",
-                        action: { showingSetup = true }
-                    )
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    emptyState
                 } else {
-                    List {
-                        if let active = activeSession {
-                            ResumeSessionBanner(session: active) { liveSession = active }
-                                .listRowBackground(Color.clear)
-                                .listRowSeparator(.hidden)
-                                .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 4, trailing: 16))
-                        }
-
-                        if importReviewCount > 0 {
-                            ImportReviewBanner(count: importReviewCount)
-                                .listRowBackground(Color.clear)
-                                .listRowSeparator(.hidden)
-                                .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
-                        }
-
-                        if !leagues.isEmpty {
-                            Section {
-                                sectionHeaderRow("Leagues", count: leagues.count, isExpanded: $leaguesExpanded)
-                                if leaguesExpanded {
-                                    ForEach(sortedLeagues(leagues)) { group in
-                                        leagueNavRow(group, archived: false)
-                                    }
-                                }
-                            }
-                        }
-
-                        if !tournamentGroups.isEmpty {
-                            Section {
-                                sectionHeaderRow("Tournaments", count: tournamentGroups.count, isExpanded: $tournamentsExpanded)
-                                if tournamentsExpanded {
-                                    ForEach(sortedTournaments(tournamentGroups)) { group in
-                                        tournamentNavRow(group, archived: false)
-                                    }
-                                }
-                            }
-                        }
-
-                        if !practiceSessions.isEmpty {
-                            Section {
-                                sectionHeaderRow("Practice", count: practiceSessions.count, isExpanded: $practiceExpanded)
-                                if practiceExpanded {
-                                    ForEach(sortedPractice(practiceSessions)) { session in
-                                        sessionNavRow(session, archived: false)
-                                    }
-                                }
-                            }
-                        }
-
-                        if archivedCount > 0 {
-                            Section {
-                                Button {
-                                    withAnimation(Theme.sectionSpring) { showArchived.toggle() }
-                                } label: {
-                                    HStack {
-                                        Label("Archived (\(archivedCount))", systemImage: "archivebox")
-                                            .font(.system(size: 14, weight: .medium))
-                                            .foregroundStyle(Theme.textSecondary)
-                                        Spacer()
-                                        Image(systemName: showArchived ? "chevron.down" : "chevron.right")
-                                            .font(.system(size: 12, weight: .semibold))
-                                            .foregroundStyle(Theme.textMuted)
-                                    }
-                                }
-                                .buttonStyle(.plain)
-                                .listRowBackground(Color.clear)
-                                .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
-
-                                if showArchived {
-                                    ForEach(archivedLeagues) { group in
-                                        leagueNavRow(group, archived: true)
-                                    }
-                                    ForEach(archivedTournaments) { group in
-                                        tournamentNavRow(group, archived: true)
-                                    }
-                                    ForEach(archivedPractice) { session in
-                                        sessionNavRow(session, archived: true)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    .listStyle(.plain)
-                    .scrollContentBackground(.hidden)
+                    sessionList
                 }
             }
             .background(Theme.bgPrimary)
             .navigationTitle("Sessions")
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Menu {
-                        Button {
-                            showingSetup = true
-                        } label: {
-                            Label("Start a Session", systemImage: "figure.bowling")
-                        }
-                        Divider()
-                        Button {
-                            showingNewLeague = true
-                        } label: {
-                            Label("New League", systemImage: "trophy")
-                        }
-                        Button {
-                            showingNewTournament = true
-                        } label: {
-                            Label("New Tournament", systemImage: "flag.checkered")
-                        }
-                    } label: {
-                        Image(systemName: "plus")
-                    }
-                }
-                if hasAnySessions {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Menu {
-                            Picker("Sort by", selection: $sessionSort) {
-                                ForEach(SessionSort.allCases) { option in
-                                    Text(option.rawValue).tag(option)
-                                }
-                            }
-                        } label: {
-                            Image(systemName: "arrow.up.arrow.down")
-                        }
-                    }
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    SettingsToolbarLink()
-                }
-            }
+            .toolbar { toolbarContent }
             .sheet(isPresented: $showingNewLeague) {
                 NewLeagueSheet()
                     .presentationDetents([.medium])
