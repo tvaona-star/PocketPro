@@ -107,8 +107,13 @@ struct ArsenalTabView: View {
             .background(Theme.bgPrimary)
             .navigationTitle("Arsenal")
             .toolbar {
+                // Match every other tab: primary "+" leading, Settings trailing.
                 ToolbarItem(placement: .topBarLeading) {
-                    SettingsToolbarLink()
+                    Button {
+                        showingAddBall = true
+                    } label: {
+                        Image(systemName: "plus")
+                    }
                 }
                 if !balls.isEmpty {
                     ToolbarItem(placement: .topBarTrailing) {
@@ -124,11 +129,7 @@ struct ArsenalTabView: View {
                     }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showingAddBall = true
-                    } label: {
-                        Image(systemName: "plus")
-                    }
+                    SettingsToolbarLink()
                 }
             }
             .sheet(isPresented: $showingAddBall) {
