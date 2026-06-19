@@ -206,6 +206,7 @@ struct LeagueDetailView: View {
     @State private var showingMerge = false
     @State private var showingStats = false
     @State private var weekToDelete: Session?
+    @State private var showingDeleteConfirm = false
     @State private var renameTarget: Session?
     @State private var renameText = ""
 
@@ -300,25 +301,7 @@ struct LeagueDetailView: View {
         }
         .navigationTitle(leagueName)
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button { showingStats = true } label: { Image(systemName: "chart.bar") }
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                Button("Edit") { showingEdit = true }
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                Menu {
-                    Button {
-                        showingMerge = true
-                    } label: {
-                        Label("Merge into another league", systemImage: "arrow.triangle.merge")
-                    }
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                }
-            }
-        }
+        .toolbar { toolbarContent }
         .sheet(isPresented: $showingStats) {
             SessionStatsSheet(title: leagueName, sessions: weeks)
                 .presentationDetents([.large])
@@ -369,6 +352,47 @@ struct LeagueDetailView: View {
             }
             Button("Cancel", role: .cancel) { renameTarget = nil }
         }
+        .confirmationDialog("Delete \(leagueName)?", isPresented: $showingDeleteConfirm, titleVisibility: .visible) {
+            Button("Delete league & all weeks", role: .destructive) { deleteLeague() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Permanently removes \(leagueName) and every week and game in it. To keep it for stats but hide it, use Archive from the Sessions list instead.")
+        }
+    }
+
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
+        ToolbarItem(placement: .topBarTrailing) {
+            Button { showingStats = true } label: { Image(systemName: "chart.bar") }
+        }
+        ToolbarItem(placement: .topBarTrailing) {
+            Button("Edit") { showingEdit = true }
+        }
+        ToolbarItem(placement: .topBarTrailing) {
+            Menu {
+                Button {
+                    showingMerge = true
+                } label: {
+                    Label("Merge into another league", systemImage: "arrow.triangle.merge")
+                }
+                Divider()
+                Button(role: .destructive) {
+                    showingDeleteConfirm = true
+                } label: {
+                    Label("Delete League", systemImage: "trash")
+                }
+            } label: {
+                Image(systemName: "ellipsis.circle")
+            }
+        }
+    }
+
+    /// Delete this whole league — every week and its games, plus the league record —
+    /// then pop back to the Sessions list.
+    private func deleteLeague() {
+        for week in weeks { context.delete(week) }
+        if let event { context.delete(event) }
+        dismiss()
     }
 
     private var headerCard: some View {
@@ -547,6 +571,7 @@ struct TournamentDetailView: View {
     @State private var renameTarget: Session?
     @State private var renameText = ""
     @State private var blockToDelete: Session?
+    @State private var showingDeleteConfirm = false
     @State private var showingMerge = false
     @State private var showingStats = false
 
@@ -640,25 +665,7 @@ struct TournamentDetailView: View {
         }
         .navigationTitle(tournamentName)
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button { showingStats = true } label: { Image(systemName: "chart.bar") }
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                Button("Edit") { showingEdit = true }
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                Menu {
-                    Button {
-                        showingMerge = true
-                    } label: {
-                        Label("Merge into another tournament", systemImage: "arrow.triangle.merge")
-                    }
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                }
-            }
-        }
+        .toolbar { toolbarContent }
         .sheet(isPresented: $showingStats) {
             SessionStatsSheet(title: tournamentName, sessions: blocks)
                 .presentationDetents([.large])
@@ -715,6 +722,47 @@ struct TournamentDetailView: View {
                     }
             }
         }
+        .confirmationDialog("Delete \(tournamentName)?", isPresented: $showingDeleteConfirm, titleVisibility: .visible) {
+            Button("Delete tournament & all blocks", role: .destructive) { deleteTournament() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Permanently removes \(tournamentName) and every event block and game in it. To keep it for stats but hide it, use Archive from the Sessions list instead.")
+        }
+    }
+
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
+        ToolbarItem(placement: .topBarTrailing) {
+            Button { showingStats = true } label: { Image(systemName: "chart.bar") }
+        }
+        ToolbarItem(placement: .topBarTrailing) {
+            Button("Edit") { showingEdit = true }
+        }
+        ToolbarItem(placement: .topBarTrailing) {
+            Menu {
+                Button {
+                    showingMerge = true
+                } label: {
+                    Label("Merge into another tournament", systemImage: "arrow.triangle.merge")
+                }
+                Divider()
+                Button(role: .destructive) {
+                    showingDeleteConfirm = true
+                } label: {
+                    Label("Delete Tournament", systemImage: "trash")
+                }
+            } label: {
+                Image(systemName: "ellipsis.circle")
+            }
+        }
+    }
+
+    /// Delete this whole tournament — every block and its games, plus the record —
+    /// then pop back to the Sessions list.
+    private func deleteTournament() {
+        for block in blocks { context.delete(block) }
+        if let event { context.delete(event) }
+        dismiss()
     }
 
     private var headerCard: some View {

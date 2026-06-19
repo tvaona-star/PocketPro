@@ -78,7 +78,7 @@ struct SessionDetailView: View {
                     Button {
                         showingMerge = true
                     } label: {
-                        Label("Merge into another session", systemImage: "arrow.triangle.merge")
+                        Label("Merge games into another session", systemImage: "arrow.triangle.merge")
                     }
                     Divider()
                     Button(role: .destructive) {
