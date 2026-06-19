@@ -276,9 +276,40 @@ struct SparesTabView: View {
                     } label: {
                         menuPill(conditionFilter == .all ? "House/Sport" : conditionFilter.rawValue, active: conditionFilter != .all)
                     }
+
+                    if filtersActive {
+                        Button { resetFilters() } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "xmark.circle.fill")
+                                Text("Clear")
+                            }
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(Theme.textSecondary)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 7)
+                            .background(Theme.bgElevated)
+                            .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
             }
         }
+    }
+
+    /// Any top-bar filter set away from its default.
+    private var filtersActive: Bool {
+        typeFilter != nil || !leagueFilter.isEmpty || dateRange != .thisSeason
+            || !ballFilter.isEmpty || !patternFilter.isEmpty || conditionFilter != .all
+    }
+
+    private func resetFilters() {
+        typeFilter = nil
+        leagueFilter = []
+        dateRange = .thisSeason
+        ballFilter = []
+        patternFilter = []
+        conditionFilter = .all
     }
 
     private func menuPill(_ label: String, active: Bool) -> some View {
