@@ -18,9 +18,9 @@ struct SessionsTabView: View {
     @State private var pendingLive: Session?
     @State private var liveSession: Session?
     @State private var showArchived = false
-    @State private var leaguesExpanded = true
-    @State private var tournamentsExpanded = true
-    @State private var practiceExpanded = true
+    @State private var leaguesExpanded = false
+    @State private var tournamentsExpanded = false
+    @State private var practiceExpanded = false
     @State private var deleteLeagueCandidate: String?
     @State private var deleteTournamentCandidate: String?
     @State private var deleteSessionCandidate: Session?
