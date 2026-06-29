@@ -92,8 +92,8 @@ struct LiveSessionView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .background(Theme.bgPrimary)
-        .onAppear { syncLiveBall(game: game) }
-        .onChange(of: game?.id) { syncLiveBall(game: game) }
+        .onAppear { syncLiveBall(game: game, force: false) }
+        .onChange(of: game?.id) { syncLiveBall(game: game, force: true) }
         .sheet(isPresented: $showingEndOfGame, onDismiss: { endedGame = nil }) {
             if let endedGame {
                 EndOfGameCard(session: session, game: endedGame, onAnotherGame: startAnotherGame, onDone: endSession)
@@ -235,10 +235,13 @@ struct LiveSessionView: View {
         return liveBallID ?? game.ballID
     }
 
-    /// Seed the live ball from the game on appear / when a new game starts: the ball
-    /// last used in this game, else the game's starting ball.
-    private func syncLiveBall(game: Game?) {
+    /// Seed the live ball from the game. `force` (a new game just started) resets to
+    /// the carry-forward ball. Otherwise — appearing or resuming — only seed when we
+    /// have nothing yet, so we never clobber a ball the bowler picked mid-game (which
+    /// made the live ball revert to the game's starting ball, often a previous game's).
+    private func syncLiveBall(game: Game?, force: Bool) {
         guard let game else { return }
+        guard force || liveBallID == nil else { return }
         liveBallID = game.sortedFrames.last?.ballID ?? game.ballID
     }
 
