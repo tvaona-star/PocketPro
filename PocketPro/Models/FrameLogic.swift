@@ -72,17 +72,19 @@ extension Game {
                 }
             }
         } else {
-            // Strike on ball 1 → balls 2 and 3 are fill balls (bonus). A leave here is
-            // not a spare opportunity: clearing it uses the bonus 3rd ball, so it must
-            // not count as a spare attempt (it would wrongly drag down spare %).
+            // Strike on ball 1 → ball 2 is a fresh rack. If ball 2 is a non-strike that
+            // leaves pins, ball 3 is thrown to clear them — a real spare attempt
+            // (converted iff ball 2 + ball 3 = 10). Only two strikes (X X _, below) or a
+            // spare then a fill ball (above) leave a bonus ball with no spare to make.
             if balls.count >= 2 {
                 if balls[1].count < 10 {
                     if let mask = balls[1].standingAfterMask, mask != 0 {
+                        let converted = balls.count >= 3 && balls[1].count + balls[2].count == 10
                         leaves.append(LeaveRecord(
                             frame: 9,
                             pins: PinSet(mask: mask),
-                            converted: false,
-                            hadOpportunity: false,
+                            converted: converted,
+                            hadOpportunity: balls.count >= 3,
                             overridePrimary: takeOverride()
                         ))
                     }
