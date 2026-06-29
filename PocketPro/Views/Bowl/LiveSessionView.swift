@@ -88,7 +88,10 @@ struct LiveSessionView: View {
                 }
             }
             .padding(.horizontal)
-            .padding(.vertical, 8)
+            .padding(.top, 8)
+            // Keep the commit button clear of the home-indicator swipe zone so a
+            // swipe-up to leave the app can't land as an accidental strike/spare.
+            .padding(.bottom, 28)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .background(Theme.bgPrimary)
@@ -317,7 +320,7 @@ struct LiveSessionView: View {
         let entryKey = "\(entry.frameIndex):\(entry.ballIndex)"
         // Size the pin deck to whatever vertical space is left after the fixed chrome,
         // so it shrinks on small phones and never pushes the commit button off-screen.
-        let deckHeight = max(150, min(240, availableHeight - 400))
+        let deckHeight = max(150, min(240, availableHeight - 420))
 
         VStack(spacing: 10) {
             HStack {
