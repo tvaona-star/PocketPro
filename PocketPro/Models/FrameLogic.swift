@@ -72,16 +72,17 @@ extension Game {
                 }
             }
         } else {
-            // Strike on ball 1 → ball 2 is a fresh rack.
+            // Strike on ball 1 → balls 2 and 3 are fill balls (bonus). A leave here is
+            // not a spare opportunity: clearing it uses the bonus 3rd ball, so it must
+            // not count as a spare attempt (it would wrongly drag down spare %).
             if balls.count >= 2 {
                 if balls[1].count < 10 {
                     if let mask = balls[1].standingAfterMask, mask != 0 {
-                        let converted = balls.count >= 3 && balls[1].count + balls[2].count == 10
                         leaves.append(LeaveRecord(
                             frame: 9,
                             pins: PinSet(mask: mask),
-                            converted: converted,
-                            hadOpportunity: balls.count >= 3,
+                            converted: false,
+                            hadOpportunity: false,
                             overridePrimary: takeOverride()
                         ))
                     }
