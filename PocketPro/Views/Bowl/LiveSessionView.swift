@@ -31,13 +31,26 @@ struct LiveSessionView: View {
     /// The ball in hand for forward entry — what the chip shows and new frames inherit.
     /// Editing a past frame's ball doesn't change this.
     @State private var liveBallID: UUID?
+    /// Which game of the block is on screen (nil = the latest / live game).
+    @State private var selectedGameID: UUID?
 
     private var entryMode: ScoreEntryMode {
         ScoreEntryMode(rawValue: entryModeRaw) ?? .pinDeck
     }
 
+    /// The game on screen. Defaults to the latest, but the game switcher can select
+    /// an earlier one in the block to review or correct it.
     private var game: Game? {
-        session.sortedGames.last
+        if let selectedGameID, let match = session.sortedGames.first(where: { $0.id == selectedGameID }) {
+            return match
+        }
+        return session.sortedGames.last
+    }
+
+    /// True when viewing an earlier game rather than the live one.
+    private var isViewingPastGame: Bool {
+        guard let game, let last = session.sortedGames.last else { return false }
+        return game.id != last.id
     }
 
     /// Completed games in this session/block, for the running series total.
@@ -68,6 +81,7 @@ struct LiveSessionView: View {
 
                     HStack(spacing: 8) {
                         ballChip(game: game)
+                        gameSwitcher(current: game)
                         Spacer()
                         if !game.isComplete {
                             Text("Max \(ScoringEngine.maxPossibleScore(frames: game.frameCounts))")
@@ -78,10 +92,16 @@ struct LiveSessionView: View {
 
                     Spacer(minLength: 6)
 
-                    if game.isComplete {
-                        completedGamePrompt(game: game)
-                    } else if let editing = editingFrame, editingBallIndex == nil {
+                    if let editing = editingFrame, editingBallIndex == nil {
+                        // Editing takes priority over the "game complete" prompt so a
+                        // finished game's frames can still be corrected (tap a frame).
                         editShotPicker(editing)
+                    } else if editingFrame == nil, game.isComplete {
+                        if isViewingPastGame {
+                            reviewingGameBar(game: game)
+                        } else {
+                            completedGamePrompt(game: game)
+                        }
                     } else {
                         entryArea(game: game, availableHeight: geo.size.height)
                     }
@@ -228,6 +248,39 @@ struct LiveSessionView: View {
 
     /// The ball shown on the chip — the one assigned to the frame currently being
     /// entered or edited (each frame carries its own ball).
+    /// Switch between the games of this block to review or correct an earlier one.
+    /// Only shown once there's more than one game.
+    @ViewBuilder
+    private func gameSwitcher(current: Game) -> some View {
+        let games = session.sortedGames
+        if games.count > 1 {
+            Menu {
+                ForEach(games) { g in
+                    Button {
+                        if editingFrame != nil { cancelEdit() }
+                        selectedGameID = g.id
+                        syncLiveBall(game: g, force: true)
+                    } label: {
+                        Label("Game \(g.orderIndex + 1)\(g.isComplete ? " · \(g.finalScore)" : "")",
+                              systemImage: g.id == current.id ? "checkmark" : "")
+                    }
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Text("Game \(current.orderIndex + 1)")
+                        .font(.system(size: 13, weight: .semibold))
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: 9))
+                }
+                .foregroundStyle(isViewingPastGame ? .white : Theme.textSecondary)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(isViewingPastGame ? Theme.warning : Theme.bgElevated)
+                .clipShape(Capsule())
+            }
+        }
+    }
+
     private func chipBall(game: Game) -> Ball? {
         let id = chipBallID(game: game)
         return arsenal.first { $0.id == id }
@@ -570,7 +623,11 @@ struct LiveSessionView: View {
 
     private func afterCommit(game: Game) {
         // A committed edit returns to normal entry for the rest of the frame/game.
-        if editingFrame != nil { clearEdit() }
+        let wasEditing = editingFrame != nil
+        if wasEditing { clearEdit() }
+        // Only celebrate a game that just *finished* — correcting a typo in an
+        // already-complete game (or an earlier one) shouldn't re-open the card.
+        guard !wasEditing, !isViewingPastGame else { return }
         if game.isComplete {
             endedGame = game
             showingEndOfGame = true
@@ -591,6 +648,33 @@ struct LiveSessionView: View {
     }
 
     // MARK: - Game lifecycle
+
+    /// Shown while reviewing an earlier game of the block: how to correct it, and a
+    /// way back to the game in progress.
+    private func reviewingGameBar(game: Game) -> some View {
+        VStack(spacing: 10) {
+            Text("Game \(game.orderIndex + 1) — \(game.finalScore)")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(Theme.textPrimary)
+            Text("Tap any frame above to correct it.")
+                .font(.system(size: 13))
+                .foregroundStyle(Theme.textMuted)
+            Button {
+                selectedGameID = nil
+                syncLiveBall(game: session.sortedGames.last, force: true)
+            } label: {
+                Text("Back to current game")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 12)
+                    .background(Theme.accent)
+                    .clipShape(Capsule())
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .card()
+    }
 
     private func completedGamePrompt(game: Game) -> some View {
         VStack(spacing: 12) {
@@ -627,7 +711,10 @@ struct LiveSessionView: View {
     }
 
     private func startAnotherGame() {
-        guard let last = game else { return }
+        // Always continue from the block's newest game, even if an earlier one is
+        // on screen, and snap the view to the game just created.
+        guard let last = session.sortedGames.last else { return }
+        selectedGameID = nil
         let next = Game()
         next.orderIndex = last.orderIndex + 1
         next.session = session

@@ -70,6 +70,15 @@ struct SessionDetailView: View {
                     } label: {
                         Label("Add a game", systemImage: "plus")
                     }
+                    if !session.sortedGames.isEmpty {
+                        // Correct a typo in an already-finished session/block: opens
+                        // scoring, where any frame of any game can be re-entered.
+                        Button {
+                            resumeGame = true
+                        } label: {
+                            Label("Edit scores", systemImage: "square.and.pencil")
+                        }
+                    }
                     if session.needsTypeReview {
                         Button("Mark type as reviewed") {
                             session.needsTypeReview = false
