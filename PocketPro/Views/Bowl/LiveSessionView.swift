@@ -33,6 +33,9 @@ struct LiveSessionView: View {
     @State private var liveBallID: UUID?
     /// Which game of the block is on screen (nil = the latest / live game).
     @State private var selectedGameID: UUID?
+    /// Cached series total + completed-game count (see refreshSeries).
+    @State private var seriesTotal = 0
+    @State private var completedCount = 0
 
     private var entryMode: ScoreEntryMode {
         ScoreEntryMode(rawValue: entryModeRaw) ?? .pinDeck
@@ -53,12 +56,14 @@ struct LiveSessionView: View {
         return game.id != last.id
     }
 
-    /// Completed games in this session/block, for the running series total.
-    private var completedGames: [Game] {
-        session.sortedGames.filter { $0.isComplete }
-    }
-    private var seriesTotal: Int {
-        completedGames.map { $0.finalScore }.reduce(0, +)
+    /// Running series for the block, cached. Recomputing it inline meant a full
+    /// scoring pass over every game in the block on *every* re-render — i.e. on each
+    /// pin tap and ball pick — which made entry feel sluggish. Refreshed only when
+    /// shot data actually changes (see refreshSeries call sites).
+    private func refreshSeries() {
+        let done = session.sortedGames.filter { $0.isComplete }
+        completedCount = done.count
+        seriesTotal = done.reduce(0) { $0 + $1.finalScore }
     }
 
     var body: some View {
@@ -69,6 +74,11 @@ struct LiveSessionView: View {
                 sessionHeader
 
                 if let game {
+                    // Hoisted: each of these is a full scoring pass, and the body
+                    // re-runs on every pin tap — compute once per render, not 3×.
+                    let counts = game.frameCounts
+                    let gameComplete = game.isComplete
+
                     FrameStripView(game: game, editingFrameNumber: editingFrame?.number, onLongPressFrame: { frame in
                         noteFrame = frame
                     }, onTapFrame: { frame in
@@ -83,8 +93,8 @@ struct LiveSessionView: View {
                         ballChip(game: game)
                         gameSwitcher(current: game)
                         Spacer()
-                        if !game.isComplete {
-                            Text("Max \(ScoringEngine.maxPossibleScore(frames: game.frameCounts))")
+                        if !gameComplete {
+                            Text("Max \(ScoringEngine.maxPossibleScore(frames: counts))")
                                 .font(.system(size: 12, weight: .semibold))
                                 .foregroundStyle(Theme.textMuted)
                         }
@@ -96,7 +106,7 @@ struct LiveSessionView: View {
                         // Editing takes priority over the "game complete" prompt so a
                         // finished game's frames can still be corrected (tap a frame).
                         editShotPicker(editing)
-                    } else if editingFrame == nil, game.isComplete {
+                    } else if editingFrame == nil, gameComplete {
                         if isViewingPastGame {
                             reviewingGameBar(game: game)
                         } else {
@@ -115,8 +125,14 @@ struct LiveSessionView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .background(Theme.bgPrimary)
-        .onAppear { syncLiveBall(game: game, force: false) }
-        .onChange(of: game?.id) { syncLiveBall(game: game, force: true) }
+        .onAppear {
+            syncLiveBall(game: game, force: false)
+            refreshSeries()
+        }
+        .onChange(of: game?.id) {
+            syncLiveBall(game: game, force: true)
+            refreshSeries()
+        }
         .sheet(isPresented: $showingEndOfGame, onDismiss: { endedGame = nil }) {
             if let endedGame {
                 EndOfGameCard(session: session, game: endedGame, onAnotherGame: startAnotherGame, onDone: endSession)
@@ -176,11 +192,11 @@ struct LiveSessionView: View {
                     Text("Game \(session.sortedGames.count)")
                         .font(Theme.cardSubtitle)
                         .foregroundStyle(Theme.textSecondary)
-                    if !completedGames.isEmpty {
+                    if completedCount > 0 {
                         Text("Series \(seriesTotal)")
                             .font(.system(size: 13, weight: .bold).monospacedDigit())
                             .foregroundStyle(Theme.accent)
-                        Text("· \(completedGames.count) game\(completedGames.count == 1 ? "" : "s")")
+                        Text("· \(completedCount) game\(completedCount == 1 ? "" : "s")")
                             .font(.system(size: 12))
                             .foregroundStyle(Theme.textMuted)
                     }
@@ -554,6 +570,7 @@ struct LiveSessionView: View {
             frame.balls.removeLast(frame.balls.count - ballIndex)
         }
         standingSelection = .empty
+        refreshSeries()
     }
 
     /// Restore the frame and return to the shot picker.
@@ -561,12 +578,14 @@ struct LiveSessionView: View {
         if let frame = editingFrame { frame.balls = editingBackup }
         editingBallIndex = nil
         standingSelection = .empty
+        refreshSeries()
     }
 
     /// Restore the frame and leave edit mode entirely.
     private func cancelEdit() {
         if let frame = editingFrame { frame.balls = editingBackup }
         clearEdit()
+        refreshSeries()
     }
 
     /// Leave edit mode, keeping the re-entered shots.
@@ -625,6 +644,7 @@ struct LiveSessionView: View {
         // A committed edit returns to normal entry for the rest of the frame/game.
         let wasEditing = editingFrame != nil
         if wasEditing { clearEdit() }
+        refreshSeries()
         // Only celebrate a game that just *finished* — correcting a typo in an
         // already-complete game (or an earlier one) shouldn't re-open the card.
         guard !wasEditing, !isViewingPastGame else { return }
@@ -645,6 +665,7 @@ struct LiveSessionView: View {
             context.delete(lastFrame)
         }
         standingSelection = .empty
+        refreshSeries()
     }
 
     // MARK: - Game lifecycle
@@ -722,6 +743,7 @@ struct LiveSessionView: View {
         context.insert(next)
         showingEndOfGame = false
         endedGame = nil
+        refreshSeries()
     }
 
     private func endSession() {
