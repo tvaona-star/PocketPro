@@ -175,12 +175,30 @@ struct SparesTabView: View {
                     filterBar
 
                     if !hasAnyLeaves {
-                        EmptyStateView(
-                            icon: "pin",
-                            title: "No spare data yet",
-                            message: "Bowl a session to start tracking spare conversion."
-                        )
+                        if filtersActive {
+                            VStack(spacing: 12) {
+                                EmptyStateView(
+                                    icon: "line.3.horizontal.decrease.circle",
+                                    title: "No spares match these filters",
+                                    message: "Widen the date range or clear a filter to see your leaves."
+                                )
+                                Button("Clear filters") { resetFilters() }
+                                    .font(.system(size: 15, weight: .semibold))
+                                    .foregroundStyle(Theme.accent)
+                            }
+                        } else {
+                            EmptyStateView(
+                                icon: "pin",
+                                title: "No spare data yet",
+                                message: "Bowl a session to start tracking spare conversion."
+                            )
+                        }
                     } else {
+                        Text(scopeSummary)
+                            .font(.system(size: 12))
+                            .foregroundStyle(Theme.textMuted)
+                            .frame(maxWidth: .infinity, alignment: .center)
+
                         CornerPinSpotlight(games: games, priorGames: priorGames)
 
                         Picker("View", selection: $viewMode) {
@@ -329,6 +347,16 @@ struct SparesTabView: View {
         ballFilter = []
         patternFilter = []
         conditionFilter = .all
+    }
+
+    /// What the numbers on screen are based on — Stats shows the same line, and
+    /// without it an active filter silently narrowing everything is easy to miss.
+    private var scopeSummary: String {
+        let records = games
+        let sessionCount = Set(records.map { $0.sessionID }).count
+        let g = "\(records.count) game" + (records.count == 1 ? "" : "s")
+        let sess = "\(sessionCount) session" + (sessionCount == 1 ? "" : "s")
+        return "Based on " + g + " across " + sess + (filtersActive ? " (filtered)" : "")
     }
 
     /// From/To pickers for the custom date range (parity with the Stats tab).

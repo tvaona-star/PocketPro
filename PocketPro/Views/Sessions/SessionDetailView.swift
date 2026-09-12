@@ -18,7 +18,25 @@ struct SessionDetailView: View {
     @State private var resumeGame = false
     /// Leave classification is expensive; cache it and refresh only when scores
     /// change, so sheet toggles and note typing don't re-run the classifier.
-    @State private var sessionLeaves: [LeaveRecord] = []
+    @State private var leaveGroups: [LeaveGroup] = []
+
+    /// One distinct leave (by standing pins) with how often it came up and how often it
+    /// was converted — so the Spares card groups attempts instead of listing every
+    /// occurrence. Fill-ball leaves count toward `total` but never toward `attempts`,
+    /// since there was no chance to complete them.
+    private struct LeaveGroup: Identifiable {
+        let id: Int
+        let pins: PinSet
+        let title: String
+        let primaryName: String
+        let isSplit: Bool
+        let total: Int
+        let attempts: Int
+        let made: Int
+        var percent: Double? {
+            attempts == 0 ? nil : Double(made) / Double(attempts) * 100
+        }
+    }
 
     /// Cheap hash of every ball count — changes exactly when scores change.
     private var scoreSignature: Int {
@@ -33,7 +51,38 @@ struct SessionDetailView: View {
     }
 
     private func refreshLeaves() {
-        sessionLeaves = session.sortedGames.flatMap { $0.derivedLeaves() }
+        let leaves = session.sortedGames.flatMap { $0.derivedLeaves() }
+
+        // Group by standing pins, keeping one sample leave for its labels.
+        var order: [Int] = []
+        var sample: [Int: LeaveRecord] = [:]
+        var total: [Int: Int] = [:]
+        var attempts: [Int: Int] = [:]
+        var made: [Int: Int] = [:]
+        for leave in leaves {
+            let key = leave.pins.mask
+            if sample[key] == nil { sample[key] = leave; order.append(key) }
+            total[key, default: 0] += 1
+            if leave.hadOpportunity {
+                attempts[key, default: 0] += 1
+                if leave.converted { made[key, default: 0] += 1 }
+            }
+        }
+        leaveGroups = order.compactMap { key -> LeaveGroup? in
+            guard let found = sample[key] else { return nil }
+            return LeaveGroup(id: key,
+                              pins: found.pins,
+                              title: found.classification.displayTitle,
+                              primaryName: found.primary.displayName,
+                              isSplit: found.categories.contains(.split),
+                              total: total[key] ?? 0,
+                              attempts: attempts[key] ?? 0,
+                              made: made[key] ?? 0)
+        }
+        .sorted {
+            if $0.total != $1.total { return $0.total > $1.total }
+            return $0.pins.count < $1.pins.count
+        }
     }
 
     var body: some View {
@@ -388,11 +437,11 @@ struct SessionDetailView: View {
 
     @ViewBuilder
     private var spareSummary: some View {
-        let leaves = sessionLeaves
-        if !leaves.isEmpty {
-            let opportunities = leaves.filter { $0.hadOpportunity }
-            let converted = opportunities.filter { $0.converted }
-            let percent = opportunities.isEmpty ? nil : Double(converted.count) / Double(opportunities.count) * 100
+        let groups = leaveGroups
+        if !groups.isEmpty {
+            let attempts = groups.reduce(0) { $0 + $1.attempts }
+            let made = groups.reduce(0) { $0 + $1.made }
+            let percent = attempts == 0 ? nil : Double(made) / Double(attempts) * 100
 
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
@@ -400,35 +449,60 @@ struct SessionDetailView: View {
                         .font(Theme.cardTitle)
                         .foregroundStyle(Theme.textPrimary)
                     Spacer()
+                    Text("\(made)/\(attempts)")
+                        .font(.system(size: 12, weight: .medium).monospacedDigit())
+                        .foregroundStyle(Theme.textMuted)
                     Text(Notation.percent(percent))
                         .font(.system(size: 17, weight: .bold).monospacedDigit())
                         .foregroundStyle(Theme.conversionColor(percent))
                 }
-                ForEach(Array(leaves.enumerated()), id: \.offset) { _, leave in
-                    HStack(spacing: 10) {
-                        PinDiagram(standing: leave.pins, size: 34)
-                        Text(leave.classification.displayTitle)
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundStyle(Theme.textPrimary)
-                        Badge(
-                            text: leave.primary.displayName,
-                            color: leave.categories.contains(.split) ? Theme.destructive : Theme.textMuted,
-                            filled: false
-                        )
-                        Spacer()
-                        if leave.hadOpportunity {
-                            Image(systemName: leave.converted ? "checkmark.circle.fill" : "xmark.circle.fill")
-                                .foregroundStyle(leave.converted ? Theme.success : Theme.destructive)
-                        } else {
-                            Text("fill")
-                                .font(.system(size: 11))
-                                .foregroundStyle(Theme.textMuted)
-                        }
-                    }
+                ForEach(groups) { group in
+                    leaveGroupRow(group)
                 }
             }
             .card()
         }
+    }
+
+    /// One grouped leave: the pins, how often they came up, and the conversion rate
+    /// across the attempts where a spare was actually possible.
+    private func leaveGroupRow(_ group: LeaveGroup) -> some View {
+        HStack(spacing: 10) {
+            PinDiagram(standing: group.pins, size: 34)
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(group.title)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(Theme.textPrimary)
+                    if group.isSplit {
+                        Badge(text: group.primaryName, color: Theme.destructive, filled: false)
+                    }
+                }
+                Text(leaveGroupDetail(group))
+                    .font(.system(size: 11))
+                    .foregroundStyle(Theme.textMuted)
+            }
+            Spacer()
+            if group.attempts > 0 {
+                Text(Notation.percent(group.percent))
+                    .font(.system(size: 15, weight: .bold).monospacedDigit())
+                    .foregroundStyle(Theme.conversionColor(group.percent))
+            } else {
+                Text("fill")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Theme.textMuted)
+            }
+        }
+    }
+
+    private func leaveGroupDetail(_ group: LeaveGroup) -> String {
+        let left = "Left \(group.total)×"
+        guard group.attempts > 0 else { return left + " · no spare chance" }
+        var detail = left + " · made \(group.made) of \(group.attempts)"
+        if group.total > group.attempts {
+            detail += " (\(group.total - group.attempts) on a fill ball)"
+        }
+        return detail
     }
 
 }
