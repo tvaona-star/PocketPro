@@ -65,10 +65,19 @@ final class BallDatabaseService {
     @discardableResult
     func backfillImages(context: ModelContext) -> Int {
         let descriptor = FetchDescriptor<Ball>(predicate: #Predicate { $0.imageURLString == nil })
-        guard let balls = try? context.fetch(descriptor) else { return 0 }
+        guard let arsenal = try? context.fetch(descriptor) else { return 0 }
         var filled = 0
-        for ball in balls {
-            guard let dbID = ball.dbBallID, let url = record(id: dbID)?.imageURL else { continue }
+        for ball in arsenal {
+            // Prefer the direct DB link, but fall back to matching on name: balls added
+            // by hand or brought in by the PinPal import have no dbBallID, so they
+            // would otherwise never get a photo.
+            var match: BallDBRecord?
+            if let dbID = ball.dbBallID { match = record(id: dbID) }
+            if match == nil { match = matchByName(brand: ball.brand.isEmpty ? ball.manufacturer : ball.brand, model: ball.model) }
+            guard let found = match else { continue }
+            // Link it while we're here, so specs and shared-core siblings resolve too.
+            if ball.dbBallID == nil { ball.dbBallID = found.id }
+            guard let url = found.imageURL else { continue }
             ball.imageURLString = url
             filled += 1
         }
@@ -76,15 +85,39 @@ final class BallDatabaseService {
         return filled
     }
 
+    /// Case/punctuation-insensitive name match. Requires a unique model hit so we never
+    /// attach the wrong photo; brand narrows it when the model name is ambiguous.
+    func matchByName(brand: String, model: String) -> BallDBRecord? {
+        let wantedModel = Self.normalize(model)
+        guard !wantedModel.isEmpty else { return nil }
+        let byModel = balls.filter { Self.normalize($0.model) == wantedModel }
+        if byModel.count == 1 { return byModel.first }
+        guard byModel.count > 1 else { return nil }
+        let wantedBrand = Self.normalize(brand)
+        guard !wantedBrand.isEmpty else { return nil }
+        let byBrand = byModel.filter {
+            Self.normalize($0.brand) == wantedBrand || Self.normalize($0.manufacturer) == wantedBrand
+        }
+        return byBrand.count == 1 ? byBrand.first : nil
+    }
+
+    private static func normalize(_ text: String) -> String {
+        text.lowercased().filter { $0.isLetter || $0.isNumber }
+    }
+
     /// Runs the image backfill once per database version (re-runs after an OTA update
     /// that may add new photos). Cheap no-op once everything is filled.
     func backfillImagesIfNeeded(context: ModelContext) {
         guard version > 0 else { return }
+        // Bumped when the matching LOGIC changes, so existing installs re-run even
+        // though the database version is unchanged.
+        let algorithm = 2
         let key = "imageBackfillVersion"
+        let stamp = version * 100 + algorithm
         let done = UserDefaults.standard.integer(forKey: key)
-        guard done < version else { return }
-        backfillImages(context: context)
-        UserDefaults.standard.set(version, forKey: key)
+        guard done < stamp else { return }
+        _ = backfillImages(context: context)
+        UserDefaults.standard.set(stamp, forKey: key)
     }
 
     /// All brands present, sorted, for the brand filter.

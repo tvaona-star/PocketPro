@@ -33,19 +33,22 @@ struct LiveSessionView: View {
     @State private var liveBallID: UUID?
     /// Which game of the block is on screen (nil = the latest / live game).
     @State private var selectedGameID: UUID?
-    /// Cached block summary — see refreshSeries.
+    /// Cached block summary — see rebuildSummary.
     @State private var seriesTotal = 0
     @State private var completedCount = 0
     @State private var gameCount = 0
     @State private var newestGameID: UUID?
     @State private var gameTabs: [GameTab] = []
+    /// Per-game score cache. Only the game being bowled changes while entering shots,
+    /// so a commit re-scores that one game instead of the whole block.
+    @State private var gameScores: [UUID: GameScore] = [:]
     /// Bumped whenever committed shots change — drives FrameStripView's skip check.
     @State private var shotVersion = 0
     /// Derived from the displayed game's shots; cached so the body reads no
     /// `Frame.balls` (each read decodes a stored blob) on a pin tap.
     @State private var displayedComplete = false
     @State private var displayedMax = 300
-    /// False until the first refreshSeries, so the very first render (which happens
+    /// False until the first summary build, so the very first render (which happens
     /// before .onAppear) doesn't trust the defaults — matters when resuming a block
     /// whose game is already complete.
     @State private var summaryLoaded = false
@@ -56,6 +59,14 @@ struct LiveSessionView: View {
         let id: UUID
         let number: Int
         let label: String
+    }
+
+    /// One game's scoring result, so the summary can be rebuilt without re-scoring.
+    private struct GameScore {
+        let number: Int
+        let complete: Bool
+        let score: Int
+        let maxPossible: Int
     }
 
     private var entryMode: ScoreEntryMode {
@@ -80,14 +91,23 @@ struct LiveSessionView: View {
         return selectedGameID != newestGameID
     }
 
-    /// Everything about the block that costs scoring work: series total, completed
-    /// count, game count, newest game, and the switcher labels.
-    ///
-    /// All of this used to be computed inline in the body, so a full scoring pass ran
-    /// for every game in the block on *every* re-render — i.e. on each pin tap and
-    /// ball pick, getting worse the more games were bowled. Now it's computed only
-    /// when shot data actually changes (see the refreshSeries call sites).
-    private func refreshSeries() {
+    // The block summary used to be computed inline in the body, so a full scoring pass
+    // ran for every game on every re-render — on each pin tap and ball pick. It's now
+    // cached, and a shot commit re-scores only the game that changed.
+
+    /// Re-score a single game into the cache. This is the only scoring work a shot
+    /// commit should cost.
+    private func rescore(_ g: Game) {
+        let counts = g.frameCounts
+        let complete = g.isComplete(counts: counts)
+        gameScores[g.id] = GameScore(number: g.orderIndex + 1,
+                                     complete: complete,
+                                     score: complete ? g.finalScore : 0,
+                                     maxPossible: ScoringEngine.maxPossibleScore(frames: counts))
+    }
+
+    /// Rebuild the header/switcher values from the cache. No scoring, no blob reads.
+    private func rebuildSummary() {
         let games = session.sortedGames
         gameCount = games.count
         newestGameID = games.last?.id
@@ -97,27 +117,39 @@ struct LiveSessionView: View {
         tabs.reserveCapacity(games.count)
         for g in games {
             let number = g.orderIndex + 1
-            if g.isComplete {
-                let score = g.finalScore
+            guard let cached = gameScores[g.id] else {
+                tabs.append(GameTab(id: g.id, number: number, label: "Game " + String(number)))
+                continue
+            }
+            if cached.complete {
                 done += 1
-                total += score
-                tabs.append(GameTab(id: g.id, number: number, label: "Game \(number) · \(score)"))
+                total += cached.score
+                tabs.append(GameTab(id: g.id, number: number, label: "Game \(number) · \(cached.score)"))
             } else {
-                tabs.append(GameTab(id: g.id, number: number, label: "Game \(number)"))
+                tabs.append(GameTab(id: g.id, number: number, label: "Game " + String(number)))
             }
         }
         completedCount = done
         seriesTotal = total
         gameTabs = tabs
-
-        // Displayed-game values, so the body needs no scoring work per render.
-        if let shown = game {
-            let counts = shown.frameCounts
-            displayedComplete = shown.isComplete(counts: counts)
-            displayedMax = ScoringEngine.maxPossibleScore(frames: counts)
+        if let shown = game, let cached = gameScores[shown.id] {
+            displayedComplete = cached.complete
+            displayedMax = cached.maxPossible
         }
         summaryLoaded = true
         shotVersion += 1
+    }
+
+    /// Score every game — on appear, on a new game, or when switching games.
+    private func refreshAll() {
+        for g in session.sortedGames { rescore(g) }
+        rebuildSummary()
+    }
+
+    /// After a shot changes: re-score just the game on screen.
+    private func refreshCurrent() {
+        if let shown = game { rescore(shown) }
+        rebuildSummary()
     }
 
     var body: some View {
@@ -185,11 +217,11 @@ struct LiveSessionView: View {
         .background(Theme.bgPrimary)
         .onAppear {
             syncLiveBall(game: game, force: false)
-            refreshSeries()
+            refreshAll()
         }
         .onChange(of: game?.id) {
             syncLiveBall(game: game, force: true)
-            refreshSeries()
+            refreshCurrent()
         }
         .sheet(isPresented: $showingEndOfGame, onDismiss: { endedGame = nil }) {
             if let endedGame {
@@ -629,7 +661,7 @@ struct LiveSessionView: View {
             frame.balls.removeLast(frame.balls.count - ballIndex)
         }
         standingSelection = .empty
-        refreshSeries()
+        refreshCurrent()
     }
 
     /// Restore the frame and return to the shot picker.
@@ -637,14 +669,14 @@ struct LiveSessionView: View {
         if let frame = editingFrame { frame.balls = editingBackup }
         editingBallIndex = nil
         standingSelection = .empty
-        refreshSeries()
+        refreshCurrent()
     }
 
     /// Restore the frame and leave edit mode entirely.
     private func cancelEdit() {
         if let frame = editingFrame { frame.balls = editingBackup }
         clearEdit()
-        refreshSeries()
+        refreshCurrent()
     }
 
     /// Leave edit mode, keeping the re-entered shots.
@@ -703,7 +735,7 @@ struct LiveSessionView: View {
         // A committed edit returns to normal entry for the rest of the frame/game.
         let wasEditing = editingFrame != nil
         if wasEditing { clearEdit() }
-        refreshSeries()
+        refreshCurrent()
         // Only celebrate a game that just *finished* — correcting a typo in an
         // already-complete game (or an earlier one) shouldn't re-open the card.
         guard !wasEditing, !isViewingPastGame else { return }
@@ -725,7 +757,7 @@ struct LiveSessionView: View {
             context.delete(lastFrame)
         }
         standingSelection = .empty
-        refreshSeries()
+        refreshCurrent()
     }
 
     // MARK: - Game lifecycle
@@ -803,7 +835,7 @@ struct LiveSessionView: View {
         context.insert(next)
         showingEndOfGame = false
         endedGame = nil
-        refreshSeries()
+        refreshCurrent()
     }
 
     private func endSession() {
