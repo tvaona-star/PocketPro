@@ -14,6 +14,9 @@ struct SparesTabView: View {
     @State private var leagueFilter: Set<String> = []
     @State private var showingLeaguePicker = false
     @State private var dateRange: StatDateRange = .thisSeason
+    @State private var customFrom = Calendar.current.date(byAdding: .month, value: -1, to: Date()) ?? Date()
+    @State private var customTo = Date()
+    @State private var showingCustomRange = false
     @State private var ballFilter: Set<UUID> = []
     @State private var patternFilter: Set<UUID> = []
     @State private var conditionFilter: PatternCondition = .all
@@ -40,8 +43,15 @@ struct SparesTabView: View {
         case .thisMonth: return Calendar.current.date(byAdding: .month, value: -1, to: now)
         case .thisSeason: return season.seasonStart(now: now)
         case .lastYear: return Calendar.current.date(byAdding: .year, value: -1, to: now)
-        case .allTime, .custom: return nil
+        case .allTime: return nil
+        case .custom: return Calendar.current.startOfDay(for: customFrom)
         }
+    }
+
+    /// Upper bound, set only for a custom range (end of the chosen day).
+    private var rangeEnd: Date? {
+        guard dateRange == .custom else { return nil }
+        return Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: customTo))
     }
 
     /// League/tournament names flagged sport-pattern — drives the House/Sport filter.
@@ -72,7 +82,9 @@ struct SparesTabView: View {
     private var games: [GameRecord] {
         allSessions
             .filter { session in
-                sessionMatchesFilters(session) && (rangeStart.map { session.date >= $0 } ?? true)
+                sessionMatchesFilters(session)
+                    && (rangeStart.map { session.date >= $0 } ?? true)
+                    && (rangeEnd.map { session.date < $0 } ?? true)
             }
             .flatMap { $0.gameRecords() }
             .filter { gameMatchesFilters($0) }
@@ -206,6 +218,10 @@ struct SparesTabView: View {
                     SettingsToolbarLink()
                 }
             }
+            .sheet(isPresented: $showingCustomRange) {
+                customRangeSheet
+                    .presentationDetents([.medium])
+            }
             .sheet(isPresented: $showingLeaguePicker) {
                 LeagueFilterSheet(leagues: activeLeagueNames, tournaments: tournamentNames, archivedLeagues: archivedLeagueNames, selection: $leagueFilter)
                     .presentationDetents([.medium, .large])
@@ -251,8 +267,11 @@ struct SparesTabView: View {
                         .buttonStyle(.plain)
                     }
                     Menu {
-                        ForEach([StatDateRange.thisWeek, .thisMonth, .thisSeason, .lastYear, .allTime]) { range in
-                            Button(range.displayName) { dateRange = range }
+                        ForEach(StatDateRange.allCases) { range in
+                            Button(range.displayName) {
+                                dateRange = range
+                                if range == .custom { showingCustomRange = true }
+                            }
                         }
                     } label: {
                         menuPill(dateRange.displayName, active: dateRange != .allTime)
@@ -310,6 +329,23 @@ struct SparesTabView: View {
         ballFilter = []
         patternFilter = []
         conditionFilter = .all
+    }
+
+    /// From/To pickers for the custom date range (parity with the Stats tab).
+    private var customRangeSheet: some View {
+        NavigationStack {
+            Form {
+                DatePicker("From", selection: $customFrom, displayedComponents: .date)
+                DatePicker("To", selection: $customTo, displayedComponents: .date)
+            }
+            .navigationTitle("Custom Range")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { showingCustomRange = false }
+                }
+            }
+        }
     }
 
     private func menuPill(_ label: String, active: Bool) -> some View {
