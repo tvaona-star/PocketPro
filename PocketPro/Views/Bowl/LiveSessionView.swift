@@ -39,19 +39,10 @@ struct LiveSessionView: View {
     @State private var gameCount = 0
     @State private var newestGameID: UUID?
     @State private var gameTabs: [GameTab] = []
-    /// Per-game score cache. Only the game being bowled changes while entering shots,
-    /// so a commit re-scores that one game instead of the whole block.
-    @State private var gameScores: [UUID: GameScore] = [:]
-    /// Bumped whenever committed shots change — drives FrameStripView's skip check.
-    @State private var shotVersion = 0
-    /// Derived from the displayed game's shots; cached so the body reads no
-    /// `Frame.balls` (each read decodes a stored blob) on a pin tap.
-    @State private var displayedComplete = false
-    @State private var displayedMax = 300
-    /// False until the first summary build, so the very first render (which happens
-    /// before .onAppear) doesn't trust the defaults — matters when resuming a block
-    /// whose game is already complete.
-    @State private var summaryLoaded = false
+    /// Per-game snapshots — everything derived from shots, computed by the core
+    /// package. Only the game being bowled changes while entering, so a commit
+    /// re-snapshots that one game, never the whole block.
+    @State private var snapshots: [UUID: GameSnapshot] = [:]
 
     /// One row of the game switcher, with its score pre-rendered so the menu costs
     /// no scoring work at render time.
@@ -59,14 +50,6 @@ struct LiveSessionView: View {
         let id: UUID
         let number: Int
         let label: String
-    }
-
-    /// One game's scoring result, so the summary can be rebuilt without re-scoring.
-    private struct GameScore {
-        let number: Int
-        let complete: Bool
-        let score: Int
-        let maxPossible: Int
     }
 
     private var entryMode: ScoreEntryMode {
@@ -98,12 +81,21 @@ struct LiveSessionView: View {
     /// Re-score a single game into the cache. This is the only scoring work a shot
     /// commit should cost.
     private func rescore(_ g: Game) {
-        let counts = g.frameCounts
-        let complete = g.isComplete(counts: counts)
-        gameScores[g.id] = GameScore(number: g.orderIndex + 1,
-                                     complete: complete,
-                                     score: complete ? g.finalScore : 0,
-                                     maxPossible: ScoringEngine.maxPossibleScore(frames: counts))
+        snapshots[g.id] = g.snapshot()
+    }
+
+    /// The game's snapshot; computed fresh only before the first refresh.
+    private func snapshot(for game: Game) -> GameSnapshot {
+        snapshots[game.id] ?? game.snapshot()
+    }
+
+    /// Frames carrying a note or lane-play data. Reads no ball blobs, so per-render is fine.
+    private func notedFrameNumbers(_ game: Game) -> Set<Int> {
+        Set((game.frames ?? []).filter { $0.hasNote }.map { $0.number })
+    }
+
+    private func frame(_ number: Int, in game: Game) -> Frame? {
+        (game.frames ?? []).first { $0.number == number }
     }
 
     /// Rebuild the header/switcher values from the cache. No scoring, no blob reads.
@@ -117,14 +109,14 @@ struct LiveSessionView: View {
         tabs.reserveCapacity(games.count)
         for g in games {
             let number = g.orderIndex + 1
-            guard let cached = gameScores[g.id] else {
+            guard let cached = snapshots[g.id] else {
                 tabs.append(GameTab(id: g.id, number: number, label: "Game " + String(number)))
                 continue
             }
-            if cached.complete {
+            if cached.isComplete {
                 done += 1
-                total += cached.score
-                tabs.append(GameTab(id: g.id, number: number, label: "Game \(number) · \(cached.score)"))
+                total += cached.finalScore
+                tabs.append(GameTab(id: g.id, number: number, label: "Game \(number) · \(cached.finalScore)"))
             } else {
                 tabs.append(GameTab(id: g.id, number: number, label: "Game " + String(number)))
             }
@@ -132,12 +124,6 @@ struct LiveSessionView: View {
         completedCount = done
         seriesTotal = total
         gameTabs = tabs
-        if let shown = game, let cached = gameScores[shown.id] {
-            displayedComplete = cached.complete
-            displayedMax = cached.maxPossible
-        }
-        summaryLoaded = true
-        shotVersion += 1
     }
 
     /// Score every game — on appear, on a new game, or when switching games.
@@ -160,22 +146,22 @@ struct LiveSessionView: View {
                 sessionHeader
 
                 if let game {
-                    // Scoring-derived values come from the cached block summary, so a
-                    // pin tap re-renders without touching any Frame.balls blob. Only the
-                    // pre-onAppear first render pays for a direct check.
-                    let isDone = summaryLoaded ? displayedComplete : game.isComplete
+                    // Everything scoring-derived comes from the snapshot, so a pin tap
+                    // re-renders without touching any Frame.balls blob.
+                    let snap = snapshot(for: game)
+                    let isDone = snap.isComplete
 
-                    FrameStripView(game: game,
+                    FrameStripView(snapshot: snap,
                                    editingFrameNumber: editingFrame?.number,
-                                   renderVersion: shotVersion,
-                                   onLongPressFrame: { frame in
-                        noteFrame = frame
-                    }, onTapFrame: { frame in
+                                   notedFrames: notedFrameNumbers(game),
+                                   onLongPressFrame: { number in
+                        noteFrame = frame(number, in: game)
+                    }, onTapFrame: { number in
                         // Switch which frame you're editing — or return to live entry by
                         // tapping the current frame — without cancelling first.
-                        let currentIndex = entryContext(game: game).frameIndex
+                        guard let tapped = frame(number, in: game) else { return }
                         if editingFrame != nil { cancelEdit() }
-                        if frame.number - 1 != currentIndex { beginEditing(frame) }
+                        if number - 1 != snap.entryContext.frameIndex { beginEditing(tapped) }
                     })
                     .equatable()
 
@@ -184,7 +170,7 @@ struct LiveSessionView: View {
                         gameSwitcher(current: game)
                         Spacer()
                         if !isDone {
-                            Text("Max \(displayedMax)")
+                            Text("Max \(snap.maxPossible)")
                                 .font(.system(size: 12, weight: .semibold))
                                 .foregroundStyle(Theme.textMuted)
                         }
@@ -419,8 +405,8 @@ struct LiveSessionView: View {
         }
         liveBallID = ball.id
         if game.ballID == nil { game.ballID = ball.id }
-        let entry = entryContext(game: game)
-        if let frame = game.sortedFrames.first(where: { $0.number - 1 == entry.frameIndex }) {
+        let entry = snapshot(for: game).entryContext
+        if let frame = self.frame(entry.frameIndex + 1, in: game) {
             frame.ballID = ball.id
             frame.ballSwapReason = reason.isEmpty ? nil : reason
         }
@@ -428,54 +414,9 @@ struct LiveSessionView: View {
 
     // MARK: - Entry
 
-    private struct EntryContext {
-        var frameIndex: Int
-        var ballIndex: Int
-        var rack: PinSet?
-    }
-
-    /// Where the next ball goes and what rack it faces. `rack` is nil when pin
-    /// identity is unavailable (prior ball entered without pin data).
-    private func entryContext(game: Game) -> EntryContext {
-        let frames = game.sortedFrames
-        for frame in frames {
-            let index = frame.number - 1
-            if !ScoringEngine.isFrameComplete(balls: frame.counts, frameIndex: index) {
-                let balls = frame.balls
-                if index < 9 {
-                    if balls.isEmpty {
-                        return EntryContext(frameIndex: index, ballIndex: 0, rack: .full)
-                    }
-                    let rack = balls[0].standingAfterMask.map { PinSet(mask: $0) }
-                    return EntryContext(frameIndex: index, ballIndex: 1, rack: rack)
-                }
-                // Tenth frame rack walk.
-                switch balls.count {
-                case 0:
-                    return EntryContext(frameIndex: 9, ballIndex: 0, rack: .full)
-                case 1:
-                    if balls[0].count == 10 {
-                        return EntryContext(frameIndex: 9, ballIndex: 1, rack: .full)
-                    }
-                    return EntryContext(frameIndex: 9, ballIndex: 1, rack: balls[0].standingAfterMask.map { PinSet(mask: $0) })
-                default:
-                    if balls[0].count == 10 {
-                        if balls[1].count == 10 {
-                            return EntryContext(frameIndex: 9, ballIndex: 2, rack: .full)
-                        }
-                        return EntryContext(frameIndex: 9, ballIndex: 2, rack: balls[1].standingAfterMask.map { PinSet(mask: $0) })
-                    }
-                    // Spare made → fresh rack for the fill ball.
-                    return EntryContext(frameIndex: 9, ballIndex: 2, rack: .full)
-                }
-            }
-        }
-        return EntryContext(frameIndex: frames.count, ballIndex: 0, rack: .full)
-    }
-
     @ViewBuilder
     private func entryArea(game: Game, availableHeight: CGFloat) -> some View {
-        let entry = entryContext(game: game)
+        let entry = snapshot(for: game).entryContext
         // Re-seed the deck whenever we move to a new ball (see seedSelection).
         let entryKey = "\(entry.frameIndex):\(entry.ballIndex)"
         // Size the pin deck to whatever vertical space is left after the fixed chrome,
@@ -606,9 +547,9 @@ struct LiveSessionView: View {
 
     private func maxPins(game: Game, entry: EntryContext) -> Int {
         if let rack = entry.rack { return rack.count }
-        let frames = game.sortedFrames
-        if let frame = frames.first(where: { $0.number - 1 == entry.frameIndex }) {
-            return ScoringEngine.maxPinsForNextBall(balls: frame.counts, frameIndex: entry.frameIndex)
+        let counts = snapshot(for: game).frameCounts
+        if entry.frameIndex < counts.count {
+            return ScoringEngine.maxPinsForNextBall(balls: counts[entry.frameIndex], frameIndex: entry.frameIndex)
         }
         return 10
     }
@@ -616,7 +557,7 @@ struct LiveSessionView: View {
     // MARK: - Commits
 
     private func frameForEntry(game: Game, entry: EntryContext) -> Frame {
-        if let existing = game.sortedFrames.first(where: { $0.number - 1 == entry.frameIndex }) {
+        if let existing = frame(entry.frameIndex + 1, in: game) {
             return existing
         }
         let frame = Frame()

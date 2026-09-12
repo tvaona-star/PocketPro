@@ -19,24 +19,9 @@ struct SessionDetailView: View {
     /// Leave classification is expensive; cache it and refresh only when scores
     /// change, so sheet toggles and note typing don't re-run the classifier.
     @State private var leaveGroups: [LeaveGroup] = []
-
-    /// One distinct leave (by standing pins) with how often it came up and how often it
-    /// was converted — so the Spares card groups attempts instead of listing every
-    /// occurrence. Fill-ball leaves count toward `total` but never toward `attempts`,
-    /// since there was no chance to complete them.
-    private struct LeaveGroup: Identifiable {
-        let id: Int
-        let pins: PinSet
-        let title: String
-        let primaryName: String
-        let isSplit: Bool
-        let total: Int
-        let attempts: Int
-        let made: Int
-        var percent: Double? {
-            attempts == 0 ? nil : Double(made) / Double(attempts) * 100
-        }
-    }
+    /// Per-game snapshots (scores, leaves) from the core package — refreshed only
+    /// when shots change, so the body never re-derives.
+    @State private var snapshots: [UUID: GameSnapshot] = [:]
 
     /// Cheap hash of every ball count — changes exactly when scores change.
     private var scoreSignature: Int {
@@ -50,39 +35,12 @@ struct SessionDetailView: View {
         return hasher.finalize()
     }
 
-    private func refreshLeaves() {
-        let leaves = session.sortedGames.flatMap { $0.derivedLeaves() }
-
-        // Group by standing pins, keeping one sample leave for its labels.
-        var order: [Int] = []
-        var sample: [Int: LeaveRecord] = [:]
-        var total: [Int: Int] = [:]
-        var attempts: [Int: Int] = [:]
-        var made: [Int: Int] = [:]
-        for leave in leaves {
-            let key = leave.pins.mask
-            if sample[key] == nil { sample[key] = leave; order.append(key) }
-            total[key, default: 0] += 1
-            if leave.hadOpportunity {
-                attempts[key, default: 0] += 1
-                if leave.converted { made[key, default: 0] += 1 }
-            }
-        }
-        leaveGroups = order.compactMap { key -> LeaveGroup? in
-            guard let found = sample[key] else { return nil }
-            return LeaveGroup(id: key,
-                              pins: found.pins,
-                              title: found.classification.displayTitle,
-                              primaryName: found.primary.displayName,
-                              isSplit: found.categories.contains(.split),
-                              total: total[key] ?? 0,
-                              attempts: attempts[key] ?? 0,
-                              made: made[key] ?? 0)
-        }
-        .sorted {
-            if $0.total != $1.total { return $0.total > $1.total }
-            return $0.pins.count < $1.pins.count
-        }
+    private func refreshDerived() {
+        var map: [UUID: GameSnapshot] = [:]
+        let games = session.sortedGames
+        for game in games { map[game.id] = game.snapshot() }
+        snapshots = map
+        leaveGroups = LeaveGrouping.group(games.flatMap { map[$0.id]?.leaves ?? [] })
     }
 
     var body: some View {
@@ -188,8 +146,8 @@ struct SessionDetailView: View {
             FrameNoteSheet(frame: frame)
                 .presentationDetents([.medium, .large])
         }
-        .onAppear { refreshLeaves() }
-        .onChange(of: scoreSignature) { refreshLeaves() }
+        .onAppear { refreshDerived() }
+        .onChange(of: scoreSignature) { refreshDerived() }
     }
 
     /// Re-open the session for another game (e.g. after accidentally ending it) and
@@ -242,7 +200,7 @@ struct SessionDetailView: View {
                     .foregroundStyle(Theme.textSecondary)
             }
 
-            let scores = session.sortedGames.map { $0.finalScore }
+            let scores = session.sortedGames.map { snapshots[$0.id]?.finalScore ?? $0.finalScore }
             if !scores.isEmpty {
                 // Wrap to multiple rows so 7–12 games stay tidy instead of overflowing.
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 54), spacing: 12)], alignment: .leading, spacing: 8) {
@@ -277,7 +235,8 @@ struct SessionDetailView: View {
     }
 
     private func gameCard(_ game: Game) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        let snapshot = snapshots[game.id] ?? game.snapshot()
+        return VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text("Game \(game.orderIndex + 1)")
                     .font(Theme.cardTitle)
@@ -286,15 +245,18 @@ struct SessionDetailView: View {
                 if !game.hasFrameData {
                     Badge(text: "Score only", color: Theme.textMuted)
                 }
-                Text("\(game.finalScore)")
+                Text("\(snapshot.finalScore)")
                     .font(.system(size: 19, weight: .bold).monospacedDigit())
                     .foregroundStyle(Theme.textPrimary)
             }
             if game.hasFrameData {
-                FrameStripView(game: game, highlightCurrent: false, onLongPressFrame: { frame in
-                    noteFrame = frame
-                }, onTapFrame: { frame in
-                    noteFrame = frame
+                FrameStripView(snapshot: snapshot,
+                               highlightCurrent: false,
+                               notedFrames: Set((game.frames ?? []).filter { $0.hasNote }.map { $0.number }),
+                               onLongPressFrame: { number in
+                    noteFrame = (game.frames ?? []).first { $0.number == number }
+                }, onTapFrame: { number in
+                    noteFrame = (game.frames ?? []).first { $0.number == number }
                 })
                 Text("Tap a frame to review or edit its note")
                     .font(.system(size: 11))
@@ -471,11 +433,11 @@ struct SessionDetailView: View {
             PinDiagram(standing: group.pins, size: 34)
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
-                    Text(group.title)
+                    Text(group.classification.displayTitle)
                         .font(.system(size: 14, weight: .medium))
                         .foregroundStyle(Theme.textPrimary)
                     if group.isSplit {
-                        Badge(text: group.primaryName, color: Theme.destructive, filled: false)
+                        Badge(text: group.primary.displayName, color: Theme.destructive, filled: false)
                     }
                 }
                 Text(leaveGroupDetail(group))

@@ -4,70 +4,59 @@ import PocketProCore
 /// Standard 10-frame scorecard strip with running totals (PRD 5.1).
 /// Long-press a frame for the structured frame note (PRD 5.1).
 struct FrameStripView: View, Equatable {
-    let game: Game
+    /// Renders from a value snapshot, never from SwiftData: the strip can be skipped by
+    /// SwiftUI whenever the snapshot and display inputs are unchanged, so the pin-deck
+    /// selection moving on every tap no longer re-renders (and re-decodes) the scorecard.
+    let snapshot: GameSnapshot
     var highlightCurrent: Bool = true
     /// When set, this frame is highlighted as the one being edited (PRD 5.1).
     var editingFrameNumber: Int? = nil
-    /// Bumped by the caller whenever committed shots change. Lets SwiftUI skip this
-    /// view entirely while only transient state (e.g. the pin deck selection) moves —
-    /// rendering the strip decodes every frame's stored `balls` blob, so re-running it
-    /// on each pin tap is the single biggest cost during entry.
-    /// Left unset (-1) by callers that don't track a version: then it never compares
-    /// equal, preserving the old always-redraw behavior.
-    var renderVersion: Int = -1
-    var onLongPressFrame: ((Frame) -> Void)?
-    var onTapFrame: ((Frame) -> Void)?
+    /// 1-based numbers of frames carrying a note or lane-play data (shown as a dot).
+    var notedFrames: Set<Int> = []
+    /// Callbacks receive the 1-based frame number; callers resolve the model object.
+    var onLongPressFrame: ((Int) -> Void)?
+    var onTapFrame: ((Int) -> Void)?
 
     static func == (lhs: FrameStripView, rhs: FrameStripView) -> Bool {
-        guard lhs.renderVersion >= 0, rhs.renderVersion >= 0 else { return false }
-        return lhs.renderVersion == rhs.renderVersion
-            && lhs.game.id == rhs.game.id
-            && lhs.editingFrameNumber == rhs.editingFrameNumber
+        lhs.snapshot == rhs.snapshot
             && lhs.highlightCurrent == rhs.highlightCurrent
+            && lhs.editingFrameNumber == rhs.editingFrameNumber
+            && lhs.notedFrames == rhs.notedFrames
     }
 
     var body: some View {
-        // Compute the score and frame list once per render (not per cell).
-        let frames = game.sortedFrames
-        let cumulative = game.liveScore.cumulative
-        let complete = game.isComplete
-        let current = currentNumber(frames: frames)
+        let current = snapshot.currentFrameNumber ?? 10
         // All 10 frames visible at once, no scroll: 1–5 on top, 6–10 below (PRD 5.1).
         VStack(spacing: 4) {
             HStack(spacing: 4) {
                 ForEach(1...5, id: \.self) { number in
-                    frameCell(number: number, frame: frames.first { $0.number == number },
-                              cumulative: cumulative[number - 1],
-                              isCurrent: highlight(number, current: current, complete: complete))
+                    frameCell(number: number, isCurrent: highlight(number, current: current))
                 }
             }
             HStack(spacing: 4) {
                 ForEach(6...10, id: \.self) { number in
-                    frameCell(number: number, frame: frames.first { $0.number == number },
-                              cumulative: cumulative[number - 1],
-                              isCurrent: highlight(number, current: current, complete: complete))
+                    frameCell(number: number, isCurrent: highlight(number, current: current))
                 }
             }
         }
     }
 
-    private func currentNumber(frames: [Frame]) -> Int {
-        for f in frames where !ScoringEngine.isFrameComplete(balls: f.counts, frameIndex: f.number - 1) {
-            return f.number
-        }
-        return min(10, frames.count + 1)
+    private func highlight(_ number: Int, current: Int) -> Bool {
+        if let editing = editingFrameNumber { return number == editing }
+        return highlightCurrent && !snapshot.isComplete && number == current
     }
 
-    private func highlight(_ number: Int, current: Int, complete: Bool) -> Bool {
-        if let editing = editingFrameNumber { return number == editing }
-        return highlightCurrent && !complete && number == current
+    private func counts(for number: Int) -> [Int] {
+        let index = number - 1
+        return index < snapshot.frameCounts.count ? snapshot.frameCounts[index] : []
     }
 
     @ViewBuilder
-    private func frameCell(number: Int, frame: Frame?, cumulative: Int?, isCurrent: Bool) -> some View {
-        let symbols = ballSymbols(number: number, counts: frame?.counts ?? [])
+    private func frameCell(number: Int, isCurrent: Bool) -> some View {
+        let symbols = ballSymbols(number: number, counts: counts(for: number))
         // Scoresheet convention: circle the first-ball count when it left a split.
-        let split = isSplitFrame(frame)
+        let split = snapshot.splitFrameNumbers.contains(number)
+        let cumulative: Int? = number - 1 < snapshot.cumulative.count ? snapshot.cumulative[number - 1] : nil
 
         VStack(spacing: 0) {
             Text("\(number)")
@@ -107,30 +96,15 @@ struct FrameStripView: View, Equatable {
         )
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay(alignment: .topTrailing) {
-            if frame?.hasNote == true {
+            if notedFrames.contains(number) {
                 Circle()
                     .fill(Theme.warning)
                     .frame(width: 6, height: 6)
                     .offset(x: -2, y: 2)
             }
         }
-        .onTapGesture {
-            if let frame { onTapFrame?(frame) }
-        }
-        .onLongPressGesture {
-            if let frame {
-                onLongPressFrame?(frame)
-            }
-        }
-    }
-
-    /// True when the frame's first ball left a split (uses the recorded pin identity;
-    /// false for strikes, direct-score entry, or no leave).
-    private func isSplitFrame(_ frame: Frame?) -> Bool {
-        guard let frame, let first = frame.balls.first,
-              first.count < 10,
-              let mask = first.standingAfterMask, mask != 0 else { return false }
-        return LeaveClassifier.classify(PinSet(mask: mask)).categories.contains(.split)
+        .onTapGesture { onTapFrame?(number) }
+        .onLongPressGesture { onLongPressFrame?(number) }
     }
 
     /// Scorecard symbols. Frames 1-9: two cells; tenth: three cells.
