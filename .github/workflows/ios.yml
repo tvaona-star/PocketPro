@@ -1,10 +1,15 @@
 # Pocket Pro CI — the "Mac in the cloud" for a Windows + iPhone development setup.
 #
-# Job 1 (core-tests):  runs the full PocketProCore XCTest suite natively.
-# Job 2 (build-ipa):   compiles the whole iOS app (this is the compile check the
-#                      Windows machine can't do) and uploads an UNSIGNED .ipa
-#                      artifact. AltServer/AltStore re-signs it during sideload,
-#                      so no Apple Developer account is needed (docs/NO_MAC_GUIDE.md).
+# Jobs:
+#   lint          fast guards that catch the classes of bug this project has
+#                 actually hit: view files growing past the Swift type-check budget,
+#                 and the "pure" core package picking up a UI/persistence import.
+#   core-tests    the full PocketProCore XCTest suite — scoring, leave rules,
+#                 snapshots, stats. All domain logic lives here so it is testable.
+#   build-ipa     compiles the iOS app (the compile check Windows can't do) and
+#                 uploads an UNSIGNED .ipa. Gated on lint + tests so a red suite
+#                 can never produce a sideloadable build.
+#   build-sim     Debug simulator build, run in parallel for fast compile feedback.
 #
 # Triggers: every push, plus the Run-workflow button (workflow_dispatch).
 name: iOS CI
@@ -17,6 +22,35 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
+  lint:
+    name: Guards (file size, pure core)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: No app Swift file over 800 lines
+        # Large SwiftUI bodies hit "unable to type-check in reasonable time", a
+        # failure that only shows up in CI. Keep screens split into sub-views.
+        run: |
+          set -e
+          bad=0
+          while IFS= read -r f; do
+            n=$(wc -l < "$f")
+            if [ "$n" -gt 800 ]; then echo "::error file=$f::$n lines (limit 800)"; bad=1; fi
+          done < <(find PocketPro -name '*.swift' -not -path '*/.build/*')
+          [ "$bad" -eq 0 ] && echo "all app Swift files within 800 lines"
+          exit $bad
+
+      - name: Core package stays platform-agnostic
+        # PocketProCore is the Android porting spec: no UI or persistence imports.
+        run: |
+          set -e
+          if grep -rnE '^\s*import (SwiftUI|SwiftData|UIKit|CoreData)' PocketProCore/Sources; then
+            echo "::error::PocketProCore must not import UI/persistence frameworks"; exit 1
+          fi
+          echo "core package is pure"
+
   core-tests:
     name: Core engine tests (swift test)
     runs-on: macos-15
@@ -28,12 +62,20 @@ jobs:
         run: swift --version
 
       - name: Run PocketProCore test suite
-        run: swift test --package-path PocketProCore
+        run: |
+          set -o pipefail
+          swift test --package-path PocketProCore 2>&1 | tee test-output.log
+
+      - name: Summarize
+        if: always()
+        run: |
+          grep -E "Executed [0-9]+ tests" test-output.log | tail -1 | tee -a "$GITHUB_STEP_SUMMARY" || true
 
   build-ipa:
     name: Build app + unsigned IPA
     runs-on: macos-15
     timeout-minutes: 45
+    needs: [lint, core-tests]
     steps:
       - uses: actions/checkout@v4
 
@@ -68,8 +110,8 @@ jobs:
           path: PocketPro-unsigned.ipa
           retention-days: 30
 
-  # Optional sanity build for the simulator in Debug configuration — catches
-  # Debug-only compile issues (e.g. #if DEBUG paths). Cheap to keep.
+  # Debug simulator build — runs in parallel with the tests for the fastest possible
+  # compile feedback, and catches Debug-only compile issues (e.g. #if DEBUG paths).
   build-simulator:
     name: Build app (simulator, Debug)
     runs-on: macos-15
