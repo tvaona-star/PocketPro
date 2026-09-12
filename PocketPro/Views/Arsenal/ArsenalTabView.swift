@@ -163,7 +163,15 @@ struct ArsenalTabView: View {
     }
 
     private func ballRow(_ ball: Ball) -> some View {
-        BallCard(ball: ball, gamesSincePrep: ArsenalActions.gamesSinceLastPrep(ball: ball, sessions: sessions))
+        // Same pattern as the session rows: a hidden link keeps the row navigable
+        // without the List drawing a second chevron over the card's own.
+        ZStack {
+            NavigationLink {
+                BallDetailView(ball: ball)
+            } label: { EmptyView() }
+            .opacity(0)
+            BallCard(ball: ball, gamesSincePrep: ArsenalActions.gamesSinceLastPrep(ball: ball, sessions: sessions))
+        }
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
         .listRowInsets(EdgeInsets(top: 5, leading: 16, bottom: 5, trailing: 16))
@@ -264,25 +272,18 @@ struct BallThumbnail: View {
     }
 }
 
-/// Ball card (PRD 5.4.3) — collapsed by default: photo, name, brand, year, weight.
-/// Expand (chevron) to reveal coverstock, specs, layout, and a link to full detail.
+/// Arsenal row (PRD 5.4.3): a scannable summary that taps straight through to the
+/// full record. Deliberately has no inline expansion — BallDetailView already shows
+/// the specs, layout and surface history, and maintaining two disclosure layers for
+/// the same ball was the confusing part.
 struct BallCard: View {
     let ball: Ball
     var gamesSincePrep: Int = 0
-    @State private var expanded = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Button {
-                withAnimation(Theme.sectionSpring) { expanded.toggle() }
-            } label: {
-                header
-            }
-            .buttonStyle(.plain)
-
-            if expanded {
-                expandedDetail
-            }
+        VStack(alignment: .leading, spacing: 8) {
+            header
+            metaRow
         }
         .card()
     }
@@ -312,74 +313,41 @@ struct BallCard: View {
             Text("\(ball.weight) lb")
                 .font(.system(size: 14, weight: .bold).monospacedDigit())
                 .foregroundStyle(Theme.textSecondary)
-            Image(systemName: expanded ? "chevron.down" : "chevron.right")
+            Image(systemName: "chevron.right")
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(Theme.textMuted)
         }
         .contentShape(Rectangle())
     }
 
-    private var expandedDetail: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
-                CoverstockBadge(type: ball.coverstockType)
-                ThumbBadge(type: ball.thumbType)
-                if ball.importedShell {
-                    Badge(text: "Tap to add specs", color: Theme.warning)
-                }
+    /// The facts worth seeing while picking a ball out of the list: what it's made of,
+    /// where its surface is, and whether it's due for prep.
+    private var metaRow: some View {
+        HStack(spacing: 8) {
+            CoverstockBadge(type: ball.coverstockType)
+            if let surface = ball.latestSurfaceLog {
+                metaChip(surface.grit.displayName, icon: "circle.dashed")
+            } else if let finish = ball.factoryFinish, !finish.isEmpty {
+                metaChip(finish, icon: "circle.dashed")
             }
-
-            HStack(spacing: 14) {
-                if let rg = ball.rg {
-                    specPair("RG", String(format: "%.2f", rg))
-                }
-                if let diff = ball.diff {
-                    specPair("DIFF", String(format: "%.3f", diff))
-                }
-                if let surface = ball.latestSurfaceLog {
-                    specPair("SURFACE", surface.grit.displayName)
-                    specPair("PREPPED", surface.date.formatted(.dateTime.month(.abbreviated).day()))
-                } else if let finish = ball.factoryFinish {
-                    specPair("SURFACE", finish)
-                }
+            if gamesSincePrep > 0 {
+                metaChip("\(gamesSincePrep) since prep", icon: "clock.arrow.circlepath")
             }
-
-            if let layout = ball.activeLayout {
-                HStack(spacing: 6) {
-                    Image(systemName: "scribble.variable")
-                        .font(.system(size: 11))
-                        .foregroundStyle(Theme.textMuted)
-                    Text("\(layout.name) · \(layout.shorthand) \(layout.system.shortName)")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(Theme.textSecondary)
-                        .lineLimit(1)
-                }
+            if ball.importedShell {
+                Badge(text: "Add specs", color: Theme.warning)
             }
-
-            NavigationLink {
-                BallDetailView(ball: ball)
-            } label: {
-                HStack(spacing: 4) {
-                    Text("View full details")
-                        .font(.system(size: 13, weight: .semibold))
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 11, weight: .semibold))
-                }
-                .foregroundStyle(Theme.accent)
-            }
-            .buttonStyle(.plain)
-            .padding(.top, 2)
+            Spacer()
         }
     }
 
-    private func specPair(_ label: String, _ value: String) -> some View {
-        VStack(alignment: .leading, spacing: 1) {
-            Text(label)
-                .font(.system(size: 9, weight: .semibold))
-                .foregroundStyle(Theme.textMuted)
-            Text(value)
-                .font(.system(size: 13, weight: .semibold).monospacedDigit())
-                .foregroundStyle(Theme.textPrimary)
+    private func metaChip(_ text: String, icon: String) -> some View {
+        HStack(spacing: 3) {
+            Image(systemName: icon)
+                .font(.system(size: 9))
+            Text(text)
+                .font(.system(size: 11, weight: .medium))
+                .lineLimit(1)
         }
+        .foregroundStyle(Theme.textSecondary)
     }
 }
