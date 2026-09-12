@@ -25,8 +25,11 @@ final class GameSnapshotTests: XCTestCase {
         let snap = GameSnapshot(frames: frames, hasFrameData: true, storedFinal: 0)
         XCTAssertFalse(snap.isComplete)
         XCTAssertEqual(snap.currentFrameNumber, 3)
-        XCTAssertEqual(snap.cumulative.count, 2)
+        // The engine always reports 10 slots, nil from the first undetermined frame.
+        XCTAssertEqual(snap.cumulative.count, 10)
+        XCTAssertEqual(snap.cumulative[0], 20, "strike + 9 + 1")
         XCTAssertNil(snap.cumulative[1], "spare bonus still pending")
+        XCTAssertNil(snap.cumulative[9])
         XCTAssertEqual(snap.leaves.count, 1)
         XCTAssertTrue(snap.leaves[0].converted)
         XCTAssertGreaterThan(snap.maxPossible, 20)
