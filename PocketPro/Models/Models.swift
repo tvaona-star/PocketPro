@@ -179,10 +179,13 @@ final class Game {
     }
 
     var isComplete: Bool {
-        if hasFrameData {
-            return ScoringEngine.isGameComplete(frames: frameCounts)
-        }
-        return true
+        isComplete(counts: frameCounts)
+    }
+
+    /// `isComplete` for callers that already built `frameCounts`. Reading
+    /// `Frame.balls` decodes a stored blob, so avoid rebuilding it per access.
+    func isComplete(counts: [[Int]]) -> Bool {
+        hasFrameData ? ScoringEngine.isGameComplete(frames: counts) : true
     }
 
     /// Every ball used in this game (starting ball + mid-game swaps), in order of first use.

@@ -3,13 +3,28 @@ import PocketProCore
 
 /// Standard 10-frame scorecard strip with running totals (PRD 5.1).
 /// Long-press a frame for the structured frame note (PRD 5.1).
-struct FrameStripView: View {
+struct FrameStripView: View, Equatable {
     let game: Game
     var highlightCurrent: Bool = true
     /// When set, this frame is highlighted as the one being edited (PRD 5.1).
     var editingFrameNumber: Int? = nil
+    /// Bumped by the caller whenever committed shots change. Lets SwiftUI skip this
+    /// view entirely while only transient state (e.g. the pin deck selection) moves —
+    /// rendering the strip decodes every frame's stored `balls` blob, so re-running it
+    /// on each pin tap is the single biggest cost during entry.
+    /// Left unset (-1) by callers that don't track a version: then it never compares
+    /// equal, preserving the old always-redraw behavior.
+    var renderVersion: Int = -1
     var onLongPressFrame: ((Frame) -> Void)?
     var onTapFrame: ((Frame) -> Void)?
+
+    static func == (lhs: FrameStripView, rhs: FrameStripView) -> Bool {
+        guard lhs.renderVersion >= 0, rhs.renderVersion >= 0 else { return false }
+        return lhs.renderVersion == rhs.renderVersion
+            && lhs.game.id == rhs.game.id
+            && lhs.editingFrameNumber == rhs.editingFrameNumber
+            && lhs.highlightCurrent == rhs.highlightCurrent
+    }
 
     var body: some View {
         // Compute the score and frame list once per render (not per cell).

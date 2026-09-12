@@ -33,9 +33,30 @@ struct LiveSessionView: View {
     @State private var liveBallID: UUID?
     /// Which game of the block is on screen (nil = the latest / live game).
     @State private var selectedGameID: UUID?
-    /// Cached series total + completed-game count (see refreshSeries).
+    /// Cached block summary — see refreshSeries.
     @State private var seriesTotal = 0
     @State private var completedCount = 0
+    @State private var gameCount = 0
+    @State private var newestGameID: UUID?
+    @State private var gameTabs: [GameTab] = []
+    /// Bumped whenever committed shots change — drives FrameStripView's skip check.
+    @State private var shotVersion = 0
+    /// Derived from the displayed game's shots; cached so the body reads no
+    /// `Frame.balls` (each read decodes a stored blob) on a pin tap.
+    @State private var displayedComplete = false
+    @State private var displayedMax = 300
+    /// False until the first refreshSeries, so the very first render (which happens
+    /// before .onAppear) doesn't trust the defaults — matters when resuming a block
+    /// whose game is already complete.
+    @State private var summaryLoaded = false
+
+    /// One row of the game switcher, with its score pre-rendered so the menu costs
+    /// no scoring work at render time.
+    private struct GameTab: Identifiable {
+        let id: UUID
+        let number: Int
+        let label: String
+    }
 
     private var entryMode: ScoreEntryMode {
         ScoreEntryMode(rawValue: entryModeRaw) ?? .pinDeck
@@ -43,27 +64,60 @@ struct LiveSessionView: View {
 
     /// The game on screen. Defaults to the latest, but the game switcher can select
     /// an earlier one in the block to review or correct it.
+    /// Resolved without sorting — this runs on every render.
     private var game: Game? {
-        if let selectedGameID, let match = session.sortedGames.first(where: { $0.id == selectedGameID }) {
+        let all = session.games ?? []
+        if let selectedGameID, let match = all.first(where: { $0.id == selectedGameID }) {
             return match
         }
-        return session.sortedGames.last
+        return all.max { $0.orderIndex < $1.orderIndex }
     }
 
-    /// True when viewing an earlier game rather than the live one.
+    /// True when viewing an earlier game rather than the live one. O(1) via the
+    /// cached newest id — it's read several times per render.
     private var isViewingPastGame: Bool {
-        guard let game, let last = session.sortedGames.last else { return false }
-        return game.id != last.id
+        guard let selectedGameID, let newestGameID else { return false }
+        return selectedGameID != newestGameID
     }
 
-    /// Running series for the block, cached. Recomputing it inline meant a full
-    /// scoring pass over every game in the block on *every* re-render — i.e. on each
-    /// pin tap and ball pick — which made entry feel sluggish. Refreshed only when
-    /// shot data actually changes (see refreshSeries call sites).
+    /// Everything about the block that costs scoring work: series total, completed
+    /// count, game count, newest game, and the switcher labels.
+    ///
+    /// All of this used to be computed inline in the body, so a full scoring pass ran
+    /// for every game in the block on *every* re-render — i.e. on each pin tap and
+    /// ball pick, getting worse the more games were bowled. Now it's computed only
+    /// when shot data actually changes (see the refreshSeries call sites).
     private func refreshSeries() {
-        let done = session.sortedGames.filter { $0.isComplete }
-        completedCount = done.count
-        seriesTotal = done.reduce(0) { $0 + $1.finalScore }
+        let games = session.sortedGames
+        gameCount = games.count
+        newestGameID = games.last?.id
+        var total = 0
+        var done = 0
+        var tabs: [GameTab] = []
+        tabs.reserveCapacity(games.count)
+        for g in games {
+            let number = g.orderIndex + 1
+            if g.isComplete {
+                let score = g.finalScore
+                done += 1
+                total += score
+                tabs.append(GameTab(id: g.id, number: number, label: "Game \(number) · \(score)"))
+            } else {
+                tabs.append(GameTab(id: g.id, number: number, label: "Game \(number)"))
+            }
+        }
+        completedCount = done
+        seriesTotal = total
+        gameTabs = tabs
+
+        // Displayed-game values, so the body needs no scoring work per render.
+        if let shown = game {
+            let counts = shown.frameCounts
+            displayedComplete = shown.isComplete(counts: counts)
+            displayedMax = ScoringEngine.maxPossibleScore(frames: counts)
+        }
+        summaryLoaded = true
+        shotVersion += 1
     }
 
     var body: some View {
@@ -74,12 +128,15 @@ struct LiveSessionView: View {
                 sessionHeader
 
                 if let game {
-                    // Hoisted: each of these is a full scoring pass, and the body
-                    // re-runs on every pin tap — compute once per render, not 3×.
-                    let counts = game.frameCounts
-                    let gameComplete = game.isComplete
+                    // Scoring-derived values come from the cached block summary, so a
+                    // pin tap re-renders without touching any Frame.balls blob. Only the
+                    // pre-onAppear first render pays for a direct check.
+                    let isDone = summaryLoaded ? displayedComplete : game.isComplete
 
-                    FrameStripView(game: game, editingFrameNumber: editingFrame?.number, onLongPressFrame: { frame in
+                    FrameStripView(game: game,
+                                   editingFrameNumber: editingFrame?.number,
+                                   renderVersion: shotVersion,
+                                   onLongPressFrame: { frame in
                         noteFrame = frame
                     }, onTapFrame: { frame in
                         // Switch which frame you're editing — or return to live entry by
@@ -88,13 +145,14 @@ struct LiveSessionView: View {
                         if editingFrame != nil { cancelEdit() }
                         if frame.number - 1 != currentIndex { beginEditing(frame) }
                     })
+                    .equatable()
 
                     HStack(spacing: 8) {
                         ballChip(game: game)
                         gameSwitcher(current: game)
                         Spacer()
-                        if !gameComplete {
-                            Text("Max \(ScoringEngine.maxPossibleScore(frames: counts))")
+                        if !isDone {
+                            Text("Max \(displayedMax)")
                                 .font(.system(size: 12, weight: .semibold))
                                 .foregroundStyle(Theme.textMuted)
                         }
@@ -106,7 +164,7 @@ struct LiveSessionView: View {
                         // Editing takes priority over the "game complete" prompt so a
                         // finished game's frames can still be corrected (tap a frame).
                         editShotPicker(editing)
-                    } else if editingFrame == nil, gameComplete {
+                    } else if editingFrame == nil, isDone {
                         if isViewingPastGame {
                             reviewingGameBar(game: game)
                         } else {
@@ -189,7 +247,7 @@ struct LiveSessionView: View {
                     .font(.system(size: 22, weight: .bold))
                     .foregroundStyle(Theme.textPrimary)
                 HStack(spacing: 8) {
-                    Text("Game \(session.sortedGames.count)")
+                    Text("Game \(gameCount)")
                         .font(Theme.cardSubtitle)
                         .foregroundStyle(Theme.textSecondary)
                     if completedCount > 0 {
@@ -268,17 +326,18 @@ struct LiveSessionView: View {
     /// Only shown once there's more than one game.
     @ViewBuilder
     private func gameSwitcher(current: Game) -> some View {
-        let games = session.sortedGames
-        if games.count > 1 {
+        // Labels come from the cached block summary — computing each game's score here
+        // meant re-scoring the whole block on every render (Menu content is built
+        // eagerly), which is what made entry sluggish.
+        if gameCount > 1 {
             Menu {
-                ForEach(games) { g in
+                ForEach(gameTabs) { tab in
                     Button {
                         if editingFrame != nil { cancelEdit() }
-                        selectedGameID = g.id
-                        syncLiveBall(game: g, force: true)
+                        selectedGameID = tab.id
+                        syncLiveBall(game: session.games?.first { $0.id == tab.id }, force: true)
                     } label: {
-                        Label("Game \(g.orderIndex + 1)\(g.isComplete ? " · \(g.finalScore)" : "")",
-                              systemImage: g.id == current.id ? "checkmark" : "")
+                        Label(tab.label, systemImage: tab.id == current.id ? "checkmark" : "")
                     }
                 }
             } label: {
@@ -655,7 +714,8 @@ struct LiveSessionView: View {
     }
 
     private func canUndo(game: Game) -> Bool {
-        game.sortedFrames.contains { !$0.balls.isEmpty }
+        // No sort needed for a contains check — this runs every render.
+        (game.frames ?? []).contains { !$0.balls.isEmpty }
     }
 
     private func undoLastBall(game: Game) {
